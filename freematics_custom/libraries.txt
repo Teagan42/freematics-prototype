@@ -1,0 +1,18 @@
+# Required Libraries for Freematics Custom Sketch
+# Install these libraries through Arduino IDE Library Manager or manually
+
+# Core Freematics Libraries (from the Freematics repository)
+FreematicsPlus
+FreematicsESP32
+
+# Additional ESP32 Libraries
+ESP32
+WiFi
+BluetoothSerial
+SPIFFS
+ArduinoJson
+
+# Optional Libraries for extended functionality
+TinyGPS++
+MPU9250
+SSD1306
