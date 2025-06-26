@@ -9,6 +9,7 @@ echo "🚀 Freematics Custom Sketch Deployment Script"
 echo "=============================================="
 
 # Configuration
+SKETCH_DIR="freematics_custom"
 SKETCH_NAME="freematics_custom"
 BOARD_TYPE="esp32:esp32:esp32"
 EXPECTED_DEVICE_NAME="Freematics"
@@ -95,9 +96,9 @@ check_sketch_files() {
     echo "📁 Checking sketch files..."
     
     REQUIRED_FILES=(
-        "${SKETCH_NAME}.ino"
-        "config.h"
-        "telestore.h"
+        "${SKETCH_DIR}/${SKETCH_NAME}.ino"
+        "${SKETCH_DIR}/config.h"
+        "${SKETCH_DIR}/telestore.h"
     )
     
     for file in "${REQUIRED_FILES[@]}"; do
@@ -127,7 +128,7 @@ check_libraries() {
 compile_sketch() {
     echo "🔨 Compiling sketch..."
     
-    if arduino-cli compile --fqbn "$BOARD_TYPE" "$SKETCH_NAME.ino"; then
+    if arduino-cli compile --fqbn "$BOARD_TYPE" "${SKETCH_DIR}/${SKETCH_NAME}.ino"; then
         print_status "Compilation successful"
     else
         print_error "Compilation failed. Check the error messages above."
@@ -139,7 +140,7 @@ compile_sketch() {
 upload_sketch() {
     echo "📤 Uploading sketch to device..."
     
-    if arduino-cli upload -p "$ARDUINO_PORT" --fqbn "$BOARD_TYPE" "$SKETCH_NAME.ino"; then
+    if arduino-cli upload -p "$ARDUINO_PORT" --fqbn "$BOARD_TYPE" "${SKETCH_DIR}/${SKETCH_NAME}.ino"; then
         print_status "Upload successful"
     else
         print_error "Upload failed. Check the error messages above."
