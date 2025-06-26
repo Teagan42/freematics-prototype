@@ -5,7 +5,6 @@
 *************************************************************************/
 
 #include <FreematicsPlus.h>
-#include <httpd.h>
 #include "config.h"
 #include "telestore.h"
 
