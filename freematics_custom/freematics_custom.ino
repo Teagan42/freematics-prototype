@@ -43,7 +43,7 @@ public:
         
         // Initialize GPS
         Serial.print("GPS...");
-        if (gps.begin()) {
+        if (gpsInit()) {
             Serial.println("OK");
             m_state |= STATE_GPS_READY;
         } else {
@@ -52,7 +52,7 @@ public:
         
         // Initialize MEMS
         Serial.print("MEMS...");
-        if (mems.begin()) {
+        if (memsInit()) {
             Serial.println("OK");
             m_state |= STATE_MEMS_READY;
         } else {
@@ -128,18 +128,18 @@ private:
         static uint32_t lastGPSTime = 0;
         if (millis() - lastGPSTime < GPS_INTERVAL) return;
         
-        GPS_DATA* gd = gps.getCoordinate();
-        if (gd && gd->lat != 0 && gd->lng != 0) {
-            store.log(0x20, (int32_t)(gd->lat * 1000000));
-            store.log(0x21, (int32_t)(gd->lng * 1000000));
-            store.log(0x22, gd->sat);
+        GPS_DATA gd;
+        if (gpsRead(&gd) && gd.lat != 0 && gd.lng != 0) {
+            store.log(0x20, (int32_t)(gd.lat * 1000000));
+            store.log(0x21, (int32_t)(gd.lng * 1000000));
+            store.log(0x22, gd.sat);
             
             Serial.print("GPS: ");
-            Serial.print(gd->lat, 6);
+            Serial.print(gd.lat, 6);
             Serial.print(",");
-            Serial.print(gd->lng, 6);
+            Serial.print(gd.lng, 6);
             Serial.print(" SAT:");
-            Serial.println(gd->sat);
+            Serial.println(gd.sat);
         }
         
         lastGPSTime = millis();
@@ -151,7 +151,7 @@ private:
         if (millis() - lastMEMSTime < MEMS_INTERVAL) return;
         
         MEMS_DATA md;
-        if (mems.read(&md)) {
+        if (memsRead(&md)) {
             store.log(0x10, (int16_t)(md.acc[0] * 100));
             store.log(0x11, (int16_t)(md.acc[1] * 100));
             store.log(0x12, (int16_t)(md.acc[2] * 100));
@@ -206,9 +206,9 @@ private:
         }
         
         // Add GPS data if available
-        GPS_DATA* gd = gps.getCoordinate();
-        if (gd && gd->lat != 0 && gd->lng != 0) {
-            data += "GPS:" + String(gd->lat, 6) + "," + String(gd->lng, 6) + ";";
+        GPS_DATA gd;
+        if (gpsRead(&gd) && gd.lat != 0 && gd.lng != 0) {
+            data += "GPS:" + String(gd.lat, 6) + "," + String(gd.lng, 6) + ";";
         }
         
         return data;
@@ -217,8 +217,6 @@ private:
     uint16_t m_state = 0;
     TeleStore store;
     COBD obd;
-    CGPS gps;
-    CMEMS mems;
 };
 
 CustomFreematicsLogger logger;
