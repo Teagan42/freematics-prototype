@@ -17,6 +17,36 @@ This is a custom Arduino sketch based on the Freematics examples, designed to wo
 
 ## Setup Instructions
 
+### Quick Start (Recommended)
+
+1. **Install Arduino CLI**
+   ```bash
+   # macOS
+   brew install arduino-cli
+   
+   # Or download from: https://arduino.github.io/arduino-cli/
+   ```
+
+2. **Install Freematics Libraries**
+   ```bash
+   git clone https://github.com/stanleyhuangyc/Freematics.git
+   cp -r Freematics/libraries/* ~/Documents/Arduino/libraries/
+   ```
+
+3. **Deploy with Script**
+   ```bash
+   chmod +x deploy.sh
+   ./deploy.sh
+   ```
+
+The deployment script will automatically:
+- Verify your Freematics ONE+ connection
+- Check all dependencies
+- Compile and upload the sketch
+- Start serial monitoring
+
+### Manual Setup
+
 1. **Install Arduino IDE and ESP32 Core**
    - Download and install Arduino IDE
    - Add ESP32 board support via Board Manager

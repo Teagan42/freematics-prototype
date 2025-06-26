@@ -17,11 +17,34 @@ This Arduino sketch creates a vehicle telemetry system using the Freematics plat
 - OBD-II port access in target vehicle
 - Integrated GPS and MEMS sensors (or external modules)
 
+## Deployment
+
+### Automated Deployment
+Use the provided deployment script for streamlined setup:
+
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+The script automatically:
+- Verifies Arduino CLI installation
+- Detects connected Freematics ONE+ device
+- Checks required libraries and files
+- Compiles and uploads the sketch
+- Starts serial monitoring
+
+### Manual Deployment
+1. Install Arduino CLI and ESP32 board package
+2. Connect Freematics ONE+ via USB
+3. Compile: `arduino-cli compile --fqbn esp32:esp32:esp32 freematics_custom.ino`
+4. Upload: `arduino-cli upload -p /dev/cu.usbserial-* --fqbn esp32:esp32:esp32 freematics_custom.ino`
+
 ## Testing Strategy
 
 ### 1. Bench Testing
-- Connect to computer via USB
-- Monitor Serial output at 115200 baud
+- Run deployment script or connect manually via USB
+- Monitor Serial output at 115200 baud using `screen /dev/cu.usbserial-* 115200`
 - Verify initialization of OBD, GPS, MEMS, and storage components
 - Check data formatting without vehicle connection
 
