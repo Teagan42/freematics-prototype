@@ -22,9 +22,9 @@ typedef struct {
   uint8_t sat;
   uint16_t date;
   uint32_t time;
-} GPS_DATA;
+} CUSTOM_GPS_DATA;
 
-class FreematicsESP32 : public COBD, public CGPS, public CFreematicsESP32
+class CustomFreematicsLogger : public COBD, public CGPS, public CFreematicsESP32
 {
 public:
     bool init()
@@ -128,7 +128,7 @@ private:
         static uint32_t lastGPSTime = 0;
         if (millis() - lastGPSTime < GPS_INTERVAL) return;
         
-        GPS_DATA gd = {0};
+        CUSTOM_GPS_DATA gd = {0};
         if (getLocation(&gd.lat, &gd.lng)) {
             gd.sat = satellites();
             gd.date = date();
@@ -222,7 +222,7 @@ private:
     TeleStore store;
 };
 
-FreematicsESP32 logger;
+CustomFreematicsLogger logger;
 
 void setup()
 {
