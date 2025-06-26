@@ -2,6 +2,7 @@
 #define TELESTORE_H
 
 #include <Arduino.h>
+#include "config.h"
 
 typedef struct {
     uint32_t timestamp;
@@ -48,7 +49,6 @@ public:
     }
     
 private:
-    static const uint16_t MAX_LOG_ENTRIES = 100;
     LOG_DATA m_data[MAX_LOG_ENTRIES];
     uint16_t m_dataCount;
     uint16_t m_writeIndex;
