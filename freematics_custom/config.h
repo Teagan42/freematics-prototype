@@ -30,4 +30,9 @@
 #define PID_ENGINE_LOAD 0x04
 #define PID_THROTTLE_POS 0x11
 
+// Additional PID definitions for compatibility
+#define PID_GPS_LATITUDE 0x20
+#define PID_GPS_LONGITUDE 0x21
+#define PID_GPS_SATELLITES 0x22
+
 #endif // CONFIG_H
