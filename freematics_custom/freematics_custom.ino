@@ -43,7 +43,7 @@ public:
         
         // Initialize GPS
         Serial.print("GPS...");
-        if (gpsInit()) {
+        if (gpsBegin()) {
             Serial.println("OK");
             m_state |= STATE_GPS_READY;
         } else {
@@ -52,7 +52,7 @@ public:
         
         // Initialize MEMS
         Serial.print("MEMS...");
-        if (memsInit()) {
+        if (memsBegin()) {
             Serial.println("OK");
             m_state |= STATE_MEMS_READY;
         } else {
@@ -129,7 +129,7 @@ private:
         if (millis() - lastGPSTime < GPS_INTERVAL) return;
         
         GPS_DATA gd;
-        if (gpsRead(&gd) && gd.lat != 0 && gd.lng != 0) {
+        if (gpsGetData(&gd) && gd.lat != 0 && gd.lng != 0) {
             store.log(0x20, (int32_t)(gd.lat * 1000000));
             store.log(0x21, (int32_t)(gd.lng * 1000000));
             store.log(0x22, gd.sat);
@@ -151,7 +151,7 @@ private:
         if (millis() - lastMEMSTime < MEMS_INTERVAL) return;
         
         MEMS_DATA md;
-        if (memsRead(&md)) {
+        if (memsGetData(&md)) {
             store.log(0x10, (int16_t)(md.acc[0] * 100));
             store.log(0x11, (int16_t)(md.acc[1] * 100));
             store.log(0x12, (int16_t)(md.acc[2] * 100));
@@ -207,7 +207,7 @@ private:
         
         // Add GPS data if available
         GPS_DATA gd;
-        if (gpsRead(&gd) && gd.lat != 0 && gd.lng != 0) {
+        if (gpsGetData(&gd) && gd.lat != 0 && gd.lng != 0) {
             data += "GPS:" + String(gd.lat, 6) + "," + String(gd.lng, 6) + ";";
         }
         
