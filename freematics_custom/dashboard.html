@@ -1670,9 +1670,9 @@
                     fuelPressure: Math.round(45 + (Math.random() - 0.5) * 8),
                     fuelTrimShort: Math.round((Math.random() - 0.5) * 10),
                     fuelTrimLong: Math.round((Math.random() - 0.5) * 6),
-                    fuelRate: (8 + (Math.random() - 0.5) * 3).toFixed(1),
-                    mafFlow: (15 + Math.sin(elapsed * 0.1) * 5 + (Math.random() - 0.5) * 2).toFixed(1),
-                    o2Voltage: (0.45 + (Math.random() - 0.5) * 0.2).toFixed(3),
+                    fuelRate: 8 + (Math.random() - 0.5) * 3,
+                    mafFlow: 15 + Math.sin(elapsed * 0.1) * 5 + (Math.random() - 0.5) * 2,
+                    o2Voltage: 0.45 + (Math.random() - 0.5) * 0.2,
                     catalystTemp: Math.round(750 + (Math.random() - 0.5) * 100), // °F
                     boostPressure: isHighPerformance ? Math.round(8 + (Math.random() - 0.5) * 6) : Math.round((Math.random()) * 2), // Realistic boost
                     turboRpm: isHighPerformance ? Math.round(80000 + (Math.random() - 0.5) * 40000) : 0, // Realistic turbo RPM
@@ -1732,9 +1732,9 @@
                             fuelLevel: simData.fuelLevel || 0,
                             fuelTrimShort: simData.fuelTrimShort || 0,
                             fuelTrimLong: simData.fuelTrimLong || 0,
-                            fuelRate: parseFloat(simData.fuelRate) || 0,
-                            mafFlow: parseFloat(simData.mafFlow) || 0,
-                            o2Voltage: parseFloat(simData.o2Voltage) || 0,
+                            fuelRate: simData.fuelRate || 0,
+                            mafFlow: simData.mafFlow || 0,
+                            o2Voltage: simData.o2Voltage || 0,
                             catalystTemp: simData.catalystTemp || 0,
                             boostPressure: simData.boostPressure || 0,
                             turboRpm: simData.turboRpm || 0
@@ -2300,19 +2300,19 @@
                             <div className="compact-metrics">
                                 <div className="compact-metric">
                                     <div className="compact-value info">
-                                        {data.fuelRate.toFixed(2)} L/h
+                                        {(data.fuelRate || 0).toFixed(2)} L/h
                                     </div>
                                     <div className="compact-label">Fuel Rate</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className="compact-value info">
-                                        {data.mafFlow.toFixed(2)} g/s
+                                        {(data.mafFlow || 0).toFixed(2)} g/s
                                     </div>
                                     <div className="compact-label">MAF Flow</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className="compact-value info">
-                                        {data.o2Voltage.toFixed(3)} V
+                                        {(data.o2Voltage || 0).toFixed(3)} V
                                     </div>
                                     <div className="compact-label">O2 Sensor</div>
                                 </div>
