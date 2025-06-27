@@ -101,6 +101,12 @@ check_sketch_files() {
         "telestore.h"
     )
     
+    # Check if we're in the freematics_custom directory or parent directory
+    if [ ! -f "${SKETCH_NAME}.ino" ] && [ -f "../${SKETCH_NAME}.ino" ]; then
+        cd ..
+        echo "Changed to parent directory to find sketch files"
+    fi
+    
     for file in "${REQUIRED_FILES[@]}"; do
         if [ ! -f "$file" ]; then
             print_error "Required file missing: $file"
