@@ -1155,8 +1155,8 @@
                 }
 
                 // Handle special diagnostic messages that don't follow standard format
-                if (dataToProcess.startsWith('DIAGNOSTIC_RESULTS:')) {
-                    const diagnosticData = dataToProcess.substring('DIAGNOSTIC_RESULTS:'.length);
+                if (rawData.startsWith('DIAGNOSTIC_RESULTS:')) {
+                    const diagnosticData = rawData.substring('DIAGNOSTIC_RESULTS:'.length);
                     try {
                         if (!diagnosticData || typeof diagnosticData !== 'string') {
                             throw new Error('Invalid diagnostic results format');
@@ -1176,7 +1176,7 @@
                     return; // Don't process as sensor data
                 }
                     
-                if (dataToProcess.startsWith('DIAGNOSTIC_STARTED:')) {
+                if (rawData.startsWith('DIAGNOSTIC_STARTED:')) {
                     try {
                         setDiagnosticRunning(true);
                         setDiagnosticError(null);
@@ -1188,8 +1188,8 @@
                     return; // Don't process as sensor data
                 }
                     
-                if (dataToProcess.startsWith('DIAGNOSTIC_COMPLETE:')) {
-                    const status = dataToProcess.substring('DIAGNOSTIC_COMPLETE:'.length);
+                if (rawData.startsWith('DIAGNOSTIC_COMPLETE:')) {
+                    const status = rawData.substring('DIAGNOSTIC_COMPLETE:'.length);
                     try {
                         setDiagnosticRunning(false);
                         if (status === 'SUCCESS') {
@@ -1212,7 +1212,7 @@
                 // Parse the data format: messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;
                 try {
                     // Validate raw data format before processing
-                    if (!dataToProcess || typeof dataToProcess !== 'string' || dataToProcess.trim().length === 0) {
+                    if (!rawData || typeof rawData !== 'string' || rawData.trim().length === 0) {
                         throw new Error('Empty or invalid data received');
                     }
                     // Handle message counter prefix (messageId:data)
