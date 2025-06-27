@@ -1398,8 +1398,9 @@
                 setDiagnosticRunning(false);
                 setDiagnosticError('Critical error in data processing');
             }
+        };
 
-            const handleDisconnection = () => {
+        const handleDisconnection = () => {
                 console.log('Device disconnected');
                 setIsConnected(false);
                 setDevice(null);
