@@ -60,42 +60,6 @@ class MyServerCallbacks: public BLEServerCallbacks {
     }
 };
 
-// BLE Characteristic Callbacks for receiving data from client
-class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic* pCharacteristic) {
-        String value = pCharacteristic->getValue();
-        if (value.length() > 0) {
-            Serial.println("BLE RX: " + value);
-            
-            // Process commands from client
-            if (value.startsWith("CMD:")) {
-                String cmd = value.substring(4);
-                if (cmd == "RESET") {
-                    Serial.println("Received RESET command from client");
-                    ESP.restart();
-                } else if (cmd == "STATUS") {
-                    Serial.println("Received STATUS request from client");
-                    // Status will be sent in next cycle
-                } else if (cmd == "PING") {
-                    Serial.println("Received PING from client");
-                    String pong = String(millis()) + ",PONG:OK;";
-                    pCharacteristic->setValue(pong.c_str());
-                    pCharacteristic->notify();
-                } else if (cmd == "START_SIM") {
-                    Serial.println("Received START_SIM command from client");
-                    if (logger) {
-                        logger->setSimulationEnabled(true);
-                    }
-                } else if (cmd == "STOP_SIM") {
-                    Serial.println("Received STOP_SIM command from client");
-                    if (logger) {
-                        logger->setSimulationEnabled(false);
-                    }
-                }
-            }
-        }
-    }
-};
 
 // OBD-II interface with real data support and fallback to simulation
 class SimpleOBD {
@@ -483,6 +447,42 @@ private:
     SimpleGPS gps;
 };
 
+// BLE Characteristic Callbacks for receiving data from client
+class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic* pCharacteristic) {
+        String value = pCharacteristic->getValue();
+        if (value.length() > 0) {
+            Serial.println("BLE RX: " + value);
+            
+            // Process commands from client
+            if (value.startsWith("CMD:")) {
+                String cmd = value.substring(4);
+                if (cmd == "RESET") {
+                    Serial.println("Received RESET command from client");
+                    ESP.restart();
+                } else if (cmd == "STATUS") {
+                    Serial.println("Received STATUS request from client");
+                    // Status will be sent in next cycle
+                } else if (cmd == "PING") {
+                    Serial.println("Received PING from client");
+                    String pong = String(millis()) + ",PONG:OK;";
+                    pCharacteristic->setValue(pong.c_str());
+                    pCharacteristic->notify();
+                } else if (cmd == "START_SIM") {
+                    Serial.println("Received START_SIM command from client");
+                    if (logger) {
+                        logger->setSimulationEnabled(true);
+                    }
+                } else if (cmd == "STOP_SIM") {
+                    Serial.println("Received STOP_SIM command from client");
+                    if (logger) {
+                        logger->setSimulationEnabled(false);
+                    }
+                }
+            }
+        }
+    }
+};
 
 CustomFreematicsLogger loggerInstance;
 
