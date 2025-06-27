@@ -75,21 +75,36 @@ private:
     
 public:
     bool init() { 
-        // Always initialize hardware sensors first
+        // Initialize hardware sensors first
         Serial.print("Initializing hardware sensors...");
         
         // Hardware sensors are always available on Freematics devices
         Serial.println("OK");
         
-        // Try to initialize real OBD connection
-        Serial.print("Attempting real OBD-II connection...");
+        // Initialize OBD-II communication interface
+        Serial.print("Initializing OBD-II interface...");
         
-        // Initialize OBD-II communication (placeholder for real implementation)
-        // In a real implementation, this would initialize the OBD-II interface
-        // For now, we'll simulate connection attempts
-        delay(1000); // Simulate connection attempt delay
+        // Initialize Serial2 for OBD communication (adjust pins as needed)
+        Serial2.begin(38400, SERIAL_8N1, 16, 17); // RX=16, TX=17 for ESP32
+        delay(100);
         
-        // Check if vehicle is connected and responding
+        // Send initialization commands to OBD interface
+        Serial2.println("ATZ"); // Reset
+        delay(1000);
+        Serial2.println("ATE0"); // Echo off
+        delay(500);
+        Serial2.println("ATL0"); // Linefeeds off
+        delay(500);
+        Serial2.println("ATS0"); // Spaces off
+        delay(500);
+        Serial2.println("ATH1"); // Headers on
+        delay(500);
+        
+        Serial.println("OBD interface initialized");
+        
+        // Test OBD-II connection with vehicle
+        Serial.print("Testing OBD-II connection...");
+        
         int testValue;
         if (attemptRealOBDRead(0x0C, testValue)) {
             realOBDAvailable = true;
@@ -99,7 +114,7 @@ public:
         } else {
             realOBDAvailable = false;
             lastError = "No OBD-II response from vehicle";
-            Serial.println("No real OBD-II connection, hardware sensors still available");
+            Serial.println("No vehicle response, hardware sensors available");
             return true; // Still return true to allow hardware sensor readings
         }
     }
@@ -184,26 +199,39 @@ private:
     }
     
     int readBatteryVoltage() {
-        // Read actual battery voltage from ADC
-        // Freematics devices typically have voltage divider on analog pin
-        int adcValue = analogRead(A0); // Adjust pin as needed
-        // Convert ADC reading to voltage (assuming 12V max, 4095 ADC max for ESP32)
-        // This is a typical conversion - adjust based on your hardware
-        float voltage = (adcValue / 4095.0) * 3.3 * (15.0/3.3); // Voltage divider ratio
+        // Read vehicle input voltage (Vin) from ADC
+        // Freematics ONE+ has Vin connected to A0 with voltage divider
+        int adcValue = analogRead(A0);
+        // Freematics ONE+ voltage divider: Vin -> 10K -> A0 -> 2K -> GND
+        // This gives a 6:1 ratio, so max 19.8V can be measured
+        float voltage = (adcValue / 4095.0) * 3.3 * 6.0; // 6:1 voltage divider
         return (int)(voltage * 100); // Return in centivolt for precision
     }
     
     int readAmbientTemperature() {
-        // Read from onboard temperature sensor if available
-        // Many ESP32 boards have internal temperature sensor
+        // Try to read ambient temperature from OBD-II first
+        int obdTemp;
+        if (realOBDAvailable && attemptRealOBDRead(0x46, obdTemp)) {
+            return obdTemp; // Return OBD ambient temperature
+        }
+        
+        // Fallback: read from external temperature sensor if connected
+        // Check if external sensor is connected to A1 (common setup)
+        int sensorValue = analogRead(A1);
+        if (sensorValue > 100 && sensorValue < 4000) { // Valid sensor range
+            // Assuming TMP36 or similar sensor: Vout = (Temp°C × 10mV) + 500mV
+            float voltage = (sensorValue / 4095.0) * 3.3;
+            float temp_celsius = (voltage - 0.5) * 100.0;
+            return (int)temp_celsius;
+        }
+        
+        // Last resort: use ESP32 internal temperature as rough estimate
         #ifdef SOC_TEMP_SENSOR_SUPPORTED
-        // Use ESP32 internal temperature sensor
         float temp_celsius = temperatureRead();
-        return (int)temp_celsius;
+        // Internal temp runs hot, subtract offset for ambient estimate
+        return (int)(temp_celsius - 20); // Rough ambient estimate
         #else
-        // If no hardware sensor, read from external sensor or estimate
-        // For now, estimate based on system temperature
-        return 25 + random(-5, 15); // Rough ambient estimate
+        return 25; // Default ambient temperature
         #endif
     }
     
@@ -215,21 +243,86 @@ private:
     }
 
     bool attemptRealOBDRead(uint8_t pid, int& value) {
-        // Placeholder for real OBD-II communication
-        // In a real implementation, this would:
-        // 1. Send OBD-II request for the specified PID
-        // 2. Wait for response with timeout
-        // 3. Parse the response and extract the value
-        // 4. Return true if successful, false if failed
+        // Real OBD-II communication implementation
+        // This requires actual OBD-II interface hardware and protocol implementation
         
-        // For now, simulate occasional failures to test error handling
-        if (random(0, 10) < 2) { // 20% success rate for testing (no real ECU connected)
-            return readSimulatedPID(pid, value);
-        } else {
-            lastError = "Timeout reading PID 0x" + String(pid, HEX);
-            lastErrorTime = millis();
-            return false;
+        // Send OBD-II request: Mode 01 (current data) + PID
+        String obdRequest = "01" + String(pid, HEX);
+        if (pid < 0x10) obdRequest = "010" + String(pid, HEX); // Pad with zero
+        
+        // Send request via OBD interface (implementation depends on hardware)
+        // For Freematics ONE+, this would typically use the built-in OBD interface
+        Serial2.println(obdRequest); // Assuming OBD interface on Serial2
+        
+        // Wait for response with timeout
+        unsigned long startTime = millis();
+        String response = "";
+        while (millis() - startTime < 1000) { // 1 second timeout
+            if (Serial2.available()) {
+                char c = Serial2.read();
+                response += c;
+                if (c == '\r' || c == '\n') break;
+            }
         }
+        
+        // Parse OBD-II response
+        if (response.length() > 6 && response.startsWith("41")) {
+            // Valid response format: "41 [PID] [DATA]"
+            String pidResponse = response.substring(2, 4);
+            if (pidResponse.equals(String(pid, HEX))) {
+                // Extract data bytes and convert based on PID
+                String dataBytes = response.substring(4);
+                return parseOBDResponse(pid, dataBytes, value);
+            }
+        }
+        
+        lastError = "No OBD response for PID 0x" + String(pid, HEX);
+        lastErrorTime = millis();
+        return false;
+    }
+    
+    bool parseOBDResponse(uint8_t pid, String dataBytes, int& value) {
+        // Parse OBD-II response data based on PID
+        dataBytes.trim();
+        dataBytes.replace(" ", ""); // Remove spaces
+        
+        switch(pid) {
+            case 0x0C: // Engine RPM
+                if (dataBytes.length() >= 4) {
+                    int A = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
+                    int B = strtol(dataBytes.substring(2, 4).c_str(), NULL, 16);
+                    value = ((A * 256) + B) / 4; // RPM formula
+                    return true;
+                }
+                break;
+                
+            case 0x0D: // Vehicle speed
+                if (dataBytes.length() >= 2) {
+                    value = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
+                    return true;
+                }
+                break;
+                
+            case 0x05: // Engine coolant temperature
+                if (dataBytes.length() >= 2) {
+                    int temp = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
+                    value = temp - 40; // Convert to Celsius
+                    return true;
+                }
+                break;
+                
+            case 0x46: // Ambient air temperature
+                if (dataBytes.length() >= 2) {
+                    int temp = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
+                    value = temp - 40; // Convert to Celsius
+                    return true;
+                }
+                break;
+        }
+        
+        lastError = "Failed to parse OBD data for PID 0x" + String(pid, HEX);
+        lastErrorTime = millis();
+        return false;
     }
     
     bool readSimulatedPID(uint8_t pid, int& value) {
@@ -561,7 +654,7 @@ private:
         } else if (obd.isSimulationEnabled()) {
             data += "MODE:SIMULATED;";
         } else {
-            data += "MODE:HARDWARE;"; // Hardware sensors available even without OBD/simulation
+            data += "MODE:DISABLED;"; // No OBD or simulation data
         }
         
         int value;
