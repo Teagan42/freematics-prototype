@@ -404,9 +404,12 @@
                 background: #3a3a3a;
                 border: 1px solid #495057;
             }
-            .tab-content {
+            .gps-container {
                 background: #2d2d2d;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+            .gps-coords {
+                color: #adb5bd;
             }
         }
         .compact-value {
@@ -424,6 +427,34 @@
         @media (prefers-color-scheme: dark) {
             .compact-label {
                 color: #adb5bd;
+            }
+            .log-entry.error {
+                color: #f5c2c7;
+                background-color: #2c0b0e;
+            }
+            .log-entry.status {
+                color: #9eeaf9;
+                background-color: #055160;
+            }
+            .log-entry.heartbeat {
+                color: #a3cfbb;
+                background-color: #0f2419;
+            }
+            .log-entry.connect {
+                color: #9ec5fe;
+                background-color: #031633;
+            }
+            .log-entry.disconnect {
+                color: #f1aeb5;
+                background-color: #2c0b0e;
+            }
+            .log-entry.tx {
+                color: #e2e3e5;
+                background-color: #332701;
+            }
+            .log-entry.system {
+                color: #adb5bd;
+                background-color: #212529;
             }
         }
         @media (max-width: 768px) {
