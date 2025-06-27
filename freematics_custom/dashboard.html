@@ -428,6 +428,9 @@
                 turboRpm: 0
             });
             
+            const [diagnosticResults, setDiagnosticResults] = useState('');
+            const [diagnosticRunning, setDiagnosticRunning] = useState(false);
+            
             // Expected API version - update this when making breaking changes
             const EXPECTED_API_VERSION = 1;
             const [dataHistory, setDataHistory] = useState([]);
@@ -1231,6 +1234,20 @@
                                             }
                                         }
                                         break;
+                                    case 'DIAGNOSTIC_STARTED':
+                                        setDiagnosticRunning(true);
+                                        setDiagnosticResults('Diagnostic mode started... Running comprehensive system checks...');
+                                        break;
+                                    case 'DIAGNOSTIC_RESULTS':
+                                        const results = value.replace(/\|/g, '\n'); // Convert pipe separators back to newlines
+                                        setDiagnosticResults(results);
+                                        break;
+                                    case 'DIAGNOSTIC_COMPLETE':
+                                        setDiagnosticRunning(false);
+                                        if (value === 'SUCCESS') {
+                                            setDiagnosticResults(prev => prev + '\n\n✅ Diagnostic completed successfully!');
+                                        }
+                                        break;
                                 }
                             }
                         });
@@ -1444,6 +1461,14 @@
                                 title="Request current system status"
                             >
                                 🔄 Refresh Status
+                            </button>
+                            <button 
+                                style={{marginLeft: '10px', padding: '8px 16px', fontSize: '14px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: isConnected ? 'pointer' : 'not-allowed'}}
+                                onClick={() => sendCommand('DIAGNOSTIC')}
+                                disabled={!isConnected}
+                                title="Run comprehensive hardware and system diagnostics"
+                            >
+                                🔧 Run Diagnostics
                             </button>
                         </h3>
                         <div>
@@ -1728,6 +1753,7 @@
                                     <div className="compact-label">Engine Pressure</div>
                                 </div>
                             </div>
+                            
                             <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}}>
                                 <h4>System Health Summary</h4>
                                 <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.9em'}}>
@@ -1737,6 +1763,54 @@
                                     <div><strong>Fuel Level:</strong> {data.fuelLevel}% {data.fuelLevel < 25 ? '⛽' : '✅'}</div>
                                     <div><strong>Battery:</strong> {data.batteryVoltage.toFixed(1)}V {data.batteryVoltage < 12.0 ? '🔋' : '✅'}</div>
                                     <div><strong>Fuel Trim:</strong> {Math.abs(data.fuelTrimShort) > 10 ? '⚠️' : '✅'} ST: {data.fuelTrimShort}%</div>
+                                </div>
+                            </div>
+
+                            <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px'}}>
+                                <h4>Hardware Diagnostics 
+                                    <button 
+                                        style={{marginLeft: '10px', padding: '5px 10px', fontSize: '0.8em', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: isConnected && !diagnosticRunning ? 'pointer' : 'not-allowed'}}
+                                        onClick={() => sendCommand('DIAGNOSTIC')}
+                                        disabled={!isConnected || diagnosticRunning}
+                                        title="Run comprehensive hardware and system diagnostics"
+                                    >
+                                        {diagnosticRunning ? '🔄 Running...' : '🔧 Run Full Diagnostic'}
+                                    </button>
+                                </h4>
+                                
+                                {diagnosticResults ? (
+                                    <div style={{
+                                        backgroundColor: '#f8f9fa', 
+                                        padding: '10px', 
+                                        borderRadius: '5px', 
+                                        fontFamily: 'monospace', 
+                                        fontSize: '0.8em', 
+                                        whiteSpace: 'pre-wrap',
+                                        maxHeight: '400px',
+                                        overflowY: 'auto',
+                                        border: '1px solid #dee2e6'
+                                    }}>
+                                        {diagnosticResults}
+                                    </div>
+                                ) : (
+                                    <div style={{padding: '20px', textAlign: 'center', color: '#6c757d', fontStyle: 'italic'}}>
+                                        Click "Run Full Diagnostic" to scan hardware, pins, buses, and system components.
+                                        <br />
+                                        This will help identify connection issues, hardware problems, and configuration errors.
+                                    </div>
+                                )}
+                                
+                                <div style={{marginTop: '10px', fontSize: '0.85em', color: '#6c757d'}}>
+                                    <strong>Diagnostic Features:</strong><br/>
+                                    • ADC pin voltage testing (GPIO 36, 39, 34, 35, 32, 33, etc.)<br/>
+                                    • Digital pin state checking (GPIO 2, 4, 5, 16, 17, 18, etc.)<br/>
+                                    • I2C bus scanning for connected devices (SDA=21, SCL=22)<br/>
+                                    • SPI pin state verification (MISO=19, MOSI=23, SCK=18, SS=5)<br/>
+                                    • OBD-II interface testing with multiple baud rates<br/>
+                                    • ESP32 system information and health checks<br/>
+                                    • Power supply voltage analysis<br/>
+                                    • BLE connectivity verification<br/>
+                                    • Automatic issue detection and recommendations
                                 </div>
                             </div>
                         </div>

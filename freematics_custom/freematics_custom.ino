@@ -23,6 +23,12 @@
 // API Version for UI compatibility
 #define API_VERSION 1
 
+// Diagnostic mode state
+bool diagnosticMode = false;
+unsigned long diagnosticStartTime = 0;
+String diagnosticResults = "";
+int diagnosticStep = 0;
+
 // Forward declarations
 class CustomFreematicsLogger;
 class MyCharacteristicCallbacks;
@@ -72,6 +78,190 @@ private:
     bool simulationEnabled = false;  // Start with simulation disabled
     String lastError = "";
     unsigned long lastErrorTime = 0;
+    
+    // Diagnostic methods
+    String runHardwareDiagnostics() {
+        String results = "=== HARDWARE DIAGNOSTICS ===\\n";
+        
+        // Test ADC pins
+        results += "ADC Pin Tests:\\n";
+        int adcPins[] = {36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13};
+        int adcCount = sizeof(adcPins) / sizeof(adcPins[0]);
+        
+        for (int i = 0; i < adcCount; i++) {
+            int pin = adcPins[i];
+            int value = analogRead(pin);
+            results += "  GPIO" + String(pin) + ": " + String(value) + " (";
+            if (value < 100) results += "LOW";
+            else if (value > 3900) results += "HIGH";
+            else results += "ANALOG";
+            results += ")\\n";
+        }
+        
+        // Test digital pins
+        results += "Digital Pin Tests:\\n";
+        int digitalPins[] = {2, 4, 5, 16, 17, 18, 19, 21, 22, 23};
+        int digitalCount = sizeof(digitalPins) / sizeof(digitalPins[0]);
+        
+        for (int i = 0; i < digitalCount; i++) {
+            int pin = digitalPins[i];
+            pinMode(pin, INPUT_PULLUP);
+            delay(10);
+            bool value = digitalRead(pin);
+            results += "  GPIO" + String(pin) + ": " + String(value ? "HIGH" : "LOW") + "\\n";
+        }
+        
+        // Test I2C bus
+        results += "I2C Bus Scan (SDA=21, SCL=22):\\n";
+        Wire.begin(21, 22);
+        int deviceCount = 0;
+        for (byte addr = 1; addr < 127; addr++) {
+            Wire.beginTransmission(addr);
+            if (Wire.endTransmission() == 0) {
+                results += "  Device found at 0x" + String(addr, HEX) + "\\n";
+                deviceCount++;
+            }
+        }
+        if (deviceCount == 0) {
+            results += "  No I2C devices found\\n";
+        }
+        
+        // Test SPI pins
+        results += "SPI Pin States (MISO=19, MOSI=23, SCK=18, SS=5):\\n";
+        pinMode(19, INPUT);
+        pinMode(23, INPUT);
+        pinMode(18, INPUT);
+        pinMode(5, INPUT);
+        results += "  MISO(19): " + String(digitalRead(19)) + "\\n";
+        results += "  MOSI(23): " + String(digitalRead(23)) + "\\n";
+        results += "  SCK(18): " + String(digitalRead(18)) + "\\n";
+        results += "  SS(5): " + String(digitalRead(5)) + "\\n";
+        
+        return results;
+    }
+    
+    String runOBDDiagnostics() {
+        String results = "=== OBD-II DIAGNOSTICS ===\\n";
+        
+        // Test Serial2 (OBD interface)
+        results += "Serial2 OBD Interface Test:\\n";
+        Serial2.begin(38400, SERIAL_8N1, 16, 17);
+        delay(100);
+        
+        // Send AT commands and check responses
+        String commands[] = {"ATZ", "ATE0", "ATL0", "ATS0", "ATH1", "ATSP0", "0100"};
+        int cmdCount = sizeof(commands) / sizeof(commands[0]);
+        
+        for (int i = 0; i < cmdCount; i++) {
+            Serial2.println(commands[i]);
+            delay(500);
+            
+            String response = "";
+            unsigned long startTime = millis();
+            while (millis() - startTime < 1000 && Serial2.available()) {
+                char c = Serial2.read();
+                if (c != '\\r' && c != '\\n' && c != ' ') {
+                    response += c;
+                }
+            }
+            
+            results += "  " + commands[i] + " -> ";
+            if (response.length() > 0) {
+                results += response.substring(0, min(20, (int)response.length()));
+                if (response.length() > 20) results += "...";
+            } else {
+                results += "NO_RESPONSE";
+            }
+            results += "\\n";
+        }
+        
+        // Test alternative serial configurations
+        results += "Alternative Serial Configs:\\n";
+        int baudRates[] = {9600, 38400, 115200};
+        int baudCount = sizeof(baudRates) / sizeof(baudRates[0]);
+        
+        for (int i = 0; i < baudCount; i++) {
+            Serial2.begin(baudRates[i], SERIAL_8N1, 16, 17);
+            delay(100);
+            Serial2.println("ATZ");
+            delay(500);
+            
+            bool hasResponse = Serial2.available() > 0;
+            results += "  " + String(baudRates[i]) + " baud: " + (hasResponse ? "RESPONSE" : "NO_RESPONSE") + "\\n";
+            
+            // Clear buffer
+            while (Serial2.available()) Serial2.read();
+        }
+        
+        return results;
+    }
+    
+    String runSystemDiagnostics() {
+        String results = "=== SYSTEM DIAGNOSTICS ===\\n";
+        
+        // ESP32 system info
+        results += "ESP32 System Info:\\n";
+        results += "  Chip Model: " + String(ESP.getChipModel()) + "\\n";
+        results += "  Chip Revision: " + String(ESP.getChipRevision()) + "\\n";
+        results += "  CPU Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz\\n";
+        results += "  Flash Size: " + String(ESP.getFlashChipSize() / 1024 / 1024) + " MB\\n";
+        results += "  Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB\\n";
+        results += "  Uptime: " + String(millis() / 1000) + " seconds\\n";
+        
+        // Power supply analysis
+        results += "Power Supply Analysis:\\n";
+        int vin = analogRead(A0);
+        float voltage = (vin / 4095.0) * 3.3 * 6.0; // Assuming 6:1 voltage divider
+        results += "  Input Voltage: " + String(voltage, 2) + "V";
+        if (voltage < 11.0) results += " (LOW - Check power supply)";
+        else if (voltage > 15.0) results += " (HIGH - Check voltage regulator)";
+        else results += " (OK)";
+        results += "\\n";
+        
+        // Internal temperature
+        #ifdef SOC_TEMP_SENSOR_SUPPORTED
+        float temp = temperatureRead();
+        results += "  Internal Temp: " + String(temp, 1) + "°C";
+        if (temp > 80) results += " (HOT - Check cooling)";
+        else results += " (OK)";
+        results += "\\n";
+        #endif
+        
+        // WiFi/BLE coexistence
+        results += "Wireless Status:\\n";
+        results += "  BLE Active: " + String(BLEDevice::getInitialized() ? "YES" : "NO") + "\\n";
+        results += "  WiFi Active: " + String(WiFi.status() == WL_CONNECTED ? "YES" : "NO") + "\\n";
+        
+        return results;
+    }
+    
+    String runConnectivityDiagnostics() {
+        String results = "=== CONNECTIVITY DIAGNOSTICS ===\\n";
+        
+        // BLE diagnostics
+        results += "BLE Diagnostics:\\n";
+        results += "  BLE Initialized: " + String(BLEDevice::getInitialized() ? "YES" : "NO") + "\\n";
+        results += "  Client Connected: " + String(bleClientConnected ? "YES" : "NO") + "\\n";
+        results += "  Server Active: " + String(pServer != NULL ? "YES" : "NO") + "\\n";
+        results += "  Characteristic Active: " + String(pCharacteristic != NULL ? "YES" : "NO") + "\\n";
+        
+        if (pServer) {
+            results += "  Connected Clients: " + String(pServer->getConnectedCount()) + "\\n";
+        }
+        
+        // Test BLE transmission
+        if (pCharacteristic && bleClientConnected) {
+            results += "  Testing BLE TX: ";
+            String testMsg = "DIAG_TEST:" + String(millis());
+            pCharacteristic->setValue(testMsg.c_str());
+            pCharacteristic->notify();
+            results += "SENT\\n";
+        } else {
+            results += "  BLE TX Test: SKIPPED (no client)\\n";
+        }
+        
+        return results;
+    }
     
 public:
     bool init() { 
@@ -189,6 +379,51 @@ public:
     void setSimulationEnabled(bool enabled) {
         simulationEnabled = enabled;
         Serial.println("Simulation " + String(enabled ? "enabled" : "disabled"));
+    }
+    
+    String runFullDiagnostics() {
+        String fullResults = "";
+        fullResults += runSystemDiagnostics();
+        fullResults += "\\n";
+        fullResults += runHardwareDiagnostics();
+        fullResults += "\\n";
+        fullResults += runOBDDiagnostics();
+        fullResults += "\\n";
+        fullResults += runConnectivityDiagnostics();
+        fullResults += "\\n=== DIAGNOSTIC SUMMARY ===\\n";
+        
+        // Analyze results and provide recommendations
+        if (fullResults.indexOf("NO_RESPONSE") != -1) {
+            fullResults += "⚠️ OBD-II communication issues detected\\n";
+            fullResults += "  - Check OBD cable connection\\n";
+            fullResults += "  - Verify vehicle ignition is ON\\n";
+            fullResults += "  - Try different baud rates\\n";
+        }
+        
+        if (fullResults.indexOf("LOW - Check power supply") != -1) {
+            fullResults += "⚠️ Low voltage detected\\n";
+            fullResults += "  - Check 12V power connection\\n";
+            fullResults += "  - Verify vehicle battery health\\n";
+        }
+        
+        if (fullResults.indexOf("HOT - Check cooling") != -1) {
+            fullResults += "⚠️ High temperature detected\\n";
+            fullResults += "  - Ensure adequate ventilation\\n";
+            fullResults += "  - Check for excessive current draw\\n";
+        }
+        
+        if (fullResults.indexOf("Device found at") != -1) {
+            fullResults += "✅ I2C devices detected - sensors available\\n";
+        }
+        
+        if (bleClientConnected) {
+            fullResults += "✅ BLE connection active\\n";
+        } else {
+            fullResults += "ℹ️ No BLE client connected\\n";
+        }
+        
+        fullResults += "\\nDiagnostic completed at " + String(millis()) + "ms\\n";
+        return fullResults;
     }
     
     String getLastError() {
@@ -736,6 +971,56 @@ public:
         obd.setSimulationEnabled(enabled);
     }
     
+    void startDiagnosticMode() {
+        diagnosticMode = true;
+        diagnosticStartTime = millis();
+        diagnosticStep = 0;
+        diagnosticResults = "";
+        Serial.println("=== STARTING DIAGNOSTIC MODE ===");
+    }
+    
+    void processDiagnosticMode() {
+        if (!diagnosticMode) return;
+        
+        unsigned long elapsed = millis() - diagnosticStartTime;
+        
+        switch (diagnosticStep) {
+            case 0:
+                Serial.println("Running comprehensive diagnostics...");
+                diagnosticResults = obd.runFullDiagnostics();
+                diagnosticStep = 1;
+                break;
+                
+            case 1:
+                if (elapsed > 2000) { // Wait 2 seconds for diagnostics to complete
+                    Serial.println("Diagnostics complete!");
+                    Serial.println(diagnosticResults);
+                    
+                    // Send results via BLE if connected
+                    if (bleClientConnected && pCharacteristic) {
+                        // Split large diagnostic results into chunks
+                        String results = diagnosticResults;
+                        results.replace("\\n", "|"); // Replace newlines with pipe for BLE transmission
+                        
+                        String diagMsg = String(millis()) + ",DIAGNOSTIC_RESULTS:" + results + ";";
+                        pCharacteristic->setValue(diagMsg.c_str());
+                        pCharacteristic->notify();
+                        
+                        delay(100); // Ensure message is sent
+                        
+                        // Send completion message
+                        String completeMsg = String(millis()) + ",DIAGNOSTIC_COMPLETE:SUCCESS;";
+                        pCharacteristic->setValue(completeMsg.c_str());
+                        pCharacteristic->notify();
+                    }
+                    
+                    diagnosticMode = false;
+                    diagnosticStep = 0;
+                }
+                break;
+        }
+    }
+    
     bool init()
     {
         bool success = true;
@@ -813,6 +1098,12 @@ public:
     {
         // Handle LED blinking when no client connected
         handleLedBlink();
+        
+        // Process diagnostic mode if active
+        if (diagnosticMode) {
+            processDiagnosticMode();
+            return; // Skip normal processing during diagnostics
+        }
         
         // Only process data if BLE client is connected
         if (bleClientConnected) {
@@ -1257,6 +1548,16 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                     // Send pong response
                     if (pCharacteristic) {
                         String response = String(millis()) + ",PONG:OK;";
+                        pCharacteristic->setValue(response.c_str());
+                        pCharacteristic->notify();
+                    }
+                } else if (command == "DIAGNOSTIC" && logger) {
+                    Serial.println("Diagnostic mode requested via BLE");
+                    logger->startDiagnosticMode();
+                    
+                    // Send immediate acknowledgment
+                    if (pCharacteristic) {
+                        String response = String(millis()) + ",DIAGNOSTIC_STARTED:OK;";
                         pCharacteristic->setValue(response.c_str());
                         pCharacteristic->notify();
                     }
