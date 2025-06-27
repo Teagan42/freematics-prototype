@@ -691,6 +691,24 @@
 
                 setRawDataLog(prev => [...prev.slice(-50), logEntry]);
 
+                // Handle simple status/heartbeat messages that don't contain sensor data
+                if (rawData.startsWith('HEARTBEAT:') || rawData.startsWith('PONG:') || rawData.startsWith('ERROR:')) {
+                    // These messages don't contain sensor data, so don't update the main data state
+                    // Just handle any specific status updates they might contain
+                    if (rawData.includes('MODE:')) {
+                        const modeMatch = rawData.match(/MODE:(\w+)/);
+                        if (modeMatch) {
+                            const mode = modeMatch[1];
+                            setData(prev => ({
+                                ...prev,
+                                dataMode: mode,
+                                simulationRunning: (mode === 'SIMULATED')
+                            }));
+                        }
+                    }
+                    return; // Don't process as sensor data
+                }
+
                 // Parse the data format: messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;
                 try {
                     // Handle message counter prefix (messageId:data)
@@ -709,7 +727,9 @@
                         const timestamp = parseInt(parts[0]);
                         const dataString = parts.slice(1).join(',');
 
-                        const newData = { ...data, timestamp };
+                        // Only create updates object for fields that are actually present
+                        const dataUpdates = { timestamp };
+                        let hasSensorData = false;
 
                         // Parse key-value pairs
                         const pairs = dataString.split(';').filter(p => p.length > 0);
@@ -720,62 +740,65 @@
 
                                 switch (key) {
                                     case 'RPM':
-                                        newData.rpm = parseInt(value) || 0;
+                                        dataUpdates.rpm = parseInt(value) || 0;
+                                        hasSensorData = true;
                                         break;
                                     case 'SPD':
                                         // Convert km/h to mph
-                                        newData.speed = Math.round((parseInt(value) || 0) * 0.621371);
+                                        dataUpdates.speed = Math.round((parseInt(value) || 0) * 0.621371);
+                                        hasSensorData = true;
                                         break;
                                     case 'COOLANT':
                                         // Convert Celsius to Fahrenheit
-                                        newData.coolant = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        dataUpdates.coolant = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
                                         break;
                                     case 'PRESSURE':
-                                        newData.enginePressure = parseInt(value) || 0;
+                                        dataUpdates.enginePressure = parseInt(value) || 0;
+                                        hasSensorData = true;
                                         break;
                                     case 'BATTERY':
-                                        newData.batteryVoltage = (parseInt(value) || 0) / 100; // Assuming value is in centivolt
+                                        dataUpdates.batteryVoltage = (parseInt(value) || 0) / 100; // Assuming value is in centivolt
+                                        hasSensorData = true;
                                         break;
                                     case 'AMBIENT':
                                         // Convert Celsius to Fahrenheit
-                                        newData.ambientTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        dataUpdates.ambientTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
                                         break;
                                     case 'GPS':
                                         const coords = value.split(',');
                                         if (coords.length >= 2) {
-                                            newData.gps = {
-                                                ...newData.gps,
+                                            dataUpdates.gps = {
                                                 lat: parseFloat(coords[0]) || 0,
                                                 lng: parseFloat(coords[1]) || 0
                                             };
                                         }
+                                        hasSensorData = true;
                                         break;
                                     case 'SAT':
                                         // Parse satellite count and indicator
                                         const satMatch = value.match(/^(\d+)(\([^)]+\))?/);
                                         if (satMatch) {
-                                            newData.gps = {
-                                                ...newData.gps,
+                                            dataUpdates.gps = {
+                                                ...(dataUpdates.gps || {}),
                                                 satellites: parseInt(satMatch[1]) || 0,
                                                 satelliteIndicator: satMatch[2] || null
                                             };
                                         } else {
-                                            newData.gps = {
-                                                ...newData.gps,
+                                            dataUpdates.gps = {
+                                                ...(dataUpdates.gps || {}),
                                                 satellites: parseInt(value) || 0,
                                                 satelliteIndicator: null
                                             };
                                         }
                                         break;
                                     case 'MODE':
-                                        // Only update if the mode actually changed to prevent flashing
-                                        if (newData.dataMode !== value) {
-                                            newData.dataMode = value;
-                                            newData.simulationRunning = (value === 'SIMULATED');
-                                        }
+                                        dataUpdates.dataMode = value;
+                                        dataUpdates.simulationRunning = (value === 'SIMULATED');
                                         break;
                                     case 'ERROR':
-                                        newData.lastError = value;
+                                        dataUpdates.lastError = value;
                                         break;
                                     case 'STATUS':
                                         // Parse status information like "OBD=REAL,GPS=OK,STORAGE=OK"
@@ -787,14 +810,11 @@
                                                 statusObj[statusKey] = statusValue;
                                             }
                                         });
-                                        // Only update if status actually changed to prevent flashing
-                                        if (JSON.stringify(newData.systemStatus) !== JSON.stringify(statusObj)) {
-                                            newData.systemStatus = statusObj;
-                                        }
+                                        dataUpdates.systemStatus = statusObj;
                                         break;
                                     case 'API_VERSION':
                                         const apiVersion = parseInt(value);
-                                        newData.apiVersion = apiVersion;
+                                        dataUpdates.apiVersion = apiVersion;
                                         validateApiVersion(apiVersion);
                                         break;
                                     case 'CONNECT':
@@ -803,7 +823,7 @@
                                             const versionMatch = value.match(/API_VERSION:(\d+)/);
                                             if (versionMatch) {
                                                 const apiVersion = parseInt(versionMatch[1]);
-                                                newData.apiVersion = apiVersion;
+                                                dataUpdates.apiVersion = apiVersion;
                                                 validateApiVersion(apiVersion);
                                             }
                                         }
@@ -812,18 +832,32 @@
                             }
                         });
 
-                        setData(newData);
+                        // Only update state if we have actual data to update
+                        if (Object.keys(dataUpdates).length > 1) { // More than just timestamp
+                            setData(prev => {
+                                const newData = { ...prev, ...dataUpdates };
+                                
+                                // Handle GPS updates properly by merging with existing GPS data
+                                if (dataUpdates.gps) {
+                                    newData.gps = { ...prev.gps, ...dataUpdates.gps };
+                                }
+                                
+                                return newData;
+                            });
 
-                        // Add to history for charting
-                        setDataHistory(prev => [...prev, {
-                            timestamp: Date.now(),
-                            rpm: newData.rpm,
-                            speed: newData.speed,
-                            coolant: newData.coolant,
-                            enginePressure: newData.enginePressure,
-                            batteryVoltage: newData.batteryVoltage,
-                            ambientTemp: newData.ambientTemp
-                        }].slice(-100)); // Keep last 100 entries
+                            // Add to history for charting only if we have sensor data
+                            if (hasSensorData) {
+                                setDataHistory(prev => [...prev, {
+                                    timestamp: Date.now(),
+                                    rpm: dataUpdates.rpm !== undefined ? dataUpdates.rpm : data.rpm,
+                                    speed: dataUpdates.speed !== undefined ? dataUpdates.speed : data.speed,
+                                    coolant: dataUpdates.coolant !== undefined ? dataUpdates.coolant : data.coolant,
+                                    enginePressure: dataUpdates.enginePressure !== undefined ? dataUpdates.enginePressure : data.enginePressure,
+                                    batteryVoltage: dataUpdates.batteryVoltage !== undefined ? dataUpdates.batteryVoltage : data.batteryVoltage,
+                                    ambientTemp: dataUpdates.ambientTemp !== undefined ? dataUpdates.ambientTemp : data.ambientTemp
+                                }].slice(-100)); // Keep last 100 entries
+                            }
+                        }
                     }
                 } catch (parseError) {
                     console.error('Error parsing data:', parseError);
