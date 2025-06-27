@@ -4,8 +4,6 @@
 * Compatible with ESP32 Arduino Core 3.2.0+
 *************************************************************************/
 
-#include <WiFi.h>
-#include <HardwareSerial.h>
 #include <BluetoothSerial.h>
 #include "config.h"
 #include "telestore.h"
@@ -35,43 +33,25 @@ bool ledState = false;
 // Forward declaration of bluetooth callback
 void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param);
 
-// Simple OBD-II implementation
+// Minimal OBD simulation
 class SimpleOBD {
 public:
-    bool init() {
-        // Initialize OBD communication (simplified)
-        Serial.println("OBD init - simplified mode");
-        return true; // Always return true for testing
-    }
-    
+    bool init() { return true; }
     bool readPID(uint8_t pid, int& value) {
-        // Simulate OBD data for testing
         switch(pid) {
-            case 0x0C: // RPM
-                value = 1500 + random(-200, 200);
-                return true;
-            case 0x0D: // Speed
-                value = 60 + random(-10, 10);
-                return true;
-            case 0x05: // Coolant temp
-                value = 85 + random(-5, 5);
-                return true;
-            default:
-                return false;
+            case 0x0C: value = 1500 + random(-200, 200); return true;
+            case 0x0D: value = 60 + random(-10, 10); return true;
+            case 0x05: value = 85 + random(-5, 5); return true;
+            default: return false;
         }
     }
 };
 
-// Simple GPS implementation
+// Minimal GPS simulation
 class SimpleGPS {
 public:
-    bool begin() {
-        Serial.println("GPS begin - simplified mode");
-        return true; // Always return true for testing
-    }
-    
+    bool begin() { return true; }
     bool getData(float& lat, float& lng, uint8_t& sat) {
-        // Simulate GPS data for testing
         lat = 37.7749 + (random(-1000, 1000) / 100000.0);
         lng = -122.4194 + (random(-1000, 1000) / 100000.0);
         sat = 8 + random(-2, 2);
@@ -183,26 +163,9 @@ private:
         if (millis() - lastOBDTime < OBD_INTERVAL) return;
         
         int value;
-        // Read engine RPM
-        if (obd.readPID(0x0C, value)) {
-            store.log(0x0C, value);
-            Serial.print("RPM: ");
-            Serial.println(value);
-        }
-        
-        // Read vehicle speed
-        if (obd.readPID(0x0D, value)) {
-            store.log(0x0D, value);
-            Serial.print("Speed: ");
-            Serial.println(value);
-        }
-        
-        // Read engine coolant temperature
-        if (obd.readPID(0x05, value)) {
-            store.log(0x05, value);
-            Serial.print("Coolant Temp: ");
-            Serial.println(value);
-        }
+        if (obd.readPID(0x0C, value)) store.log(0x0C, value);
+        if (obd.readPID(0x0D, value)) store.log(0x0D, value);
+        if (obd.readPID(0x05, value)) store.log(0x05, value);
         
         lastOBDTime = millis();
     }
@@ -218,13 +181,6 @@ private:
             store.log(0x20, (int32_t)(lat * 1000000));
             store.log(0x21, (int32_t)(lng * 1000000));
             store.log(0x22, sat);
-            
-            Serial.print("GPS: ");
-            Serial.print(lat, 6);
-            Serial.print(",");
-            Serial.print(lng, 6);
-            Serial.print(" SAT:");
-            Serial.println(sat);
         }
         
         lastGPSTime = millis();
@@ -242,13 +198,10 @@ private:
         static uint32_t lastBLETime = 0;
         if (millis() - lastBLETime < BLE_INTERVAL) return;
         
-        // Send data via Bluetooth Serial if client connected
         if (bluetoothClientConnected && (m_state & STATE_BLE_READY)) {
             String bleData = formatDataForBLE();
             if (bleData.length() > 0) {
                 SerialBT.println(bleData);
-                Serial.print("BT Data sent: ");
-                Serial.println(bleData);
             }
         }
         
@@ -257,24 +210,12 @@ private:
     
     String formatDataForBLE()
     {
-        // Format the latest data for BLE transmission
-        // This should match the format expected by the Freematics BLE Android app
-        String data = "";
+        String data = String(millis()) + ",";
         
-        // Add timestamp
-        data += String(millis());
-        data += ",";
-        
-        // Add any available OBD data
         int value;
-        if (obd.readPID(0x0C, value)) {
-            data += "RPM:" + String(value) + ";";
-        }
-        if (obd.readPID(0x0D, value)) {
-            data += "SPD:" + String(value) + ";";
-        }
+        if (obd.readPID(0x0C, value)) data += "RPM:" + String(value) + ";";
+        if (obd.readPID(0x0D, value)) data += "SPD:" + String(value) + ";";
         
-        // Add GPS data if available
         float lat, lng;
         uint8_t sat;
         if (gps.getData(lat, lng, sat)) {
@@ -293,39 +234,17 @@ private:
 // Bluetooth callback function
 void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
     if (event == ESP_SPP_SRV_OPEN_EVT) {
-        // Get client address
         char clientAddress[18];
         sprintf(clientAddress, "%02X:%02X:%02X:%02X:%02X:%02X",
                 param->srv_open.rem_bda[0], param->srv_open.rem_bda[1],
                 param->srv_open.rem_bda[2], param->srv_open.rem_bda[3],
                 param->srv_open.rem_bda[4], param->srv_open.rem_bda[5]);
         
-        Serial.print("Bluetooth client connected: ");
-        Serial.println(clientAddress);
-        
-        // Check if client address is in expected list
-        bool isExpectedClient = false;
-        for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
-            if (EXPECTED_BT_ADDRESSES[i].equals(clientAddress)) {
-                isExpectedClient = true;
-                break;
-            }
-        }
-        
-        if (isExpectedClient) {
-            bluetoothClientConnected = true;
-            Serial.println("Expected Freematics client connected - LED will stay on");
-        } else {
-            Serial.println("Warning: Unexpected client connected");
-            Serial.println("Expected addresses:");
-            for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
-                Serial.println("  " + EXPECTED_BT_ADDRESSES[i]);
-            }
-            bluetoothClientConnected = true; // Still allow connection
-        }
+        bluetoothClientConnected = true;
+        Serial.println("BT connected: " + String(clientAddress));
     } else if (event == ESP_SPP_CLOSE_EVT) {
-        Serial.println("Bluetooth client disconnected - LED will blink");
         bluetoothClientConnected = false;
+        Serial.println("BT disconnected");
     }
 }
 
@@ -336,22 +255,15 @@ void setup()
     Serial.begin(115200);
     delay(1000);
     
-    Serial.println("Freematics Custom Sketch Starting (Simplified Mode)...");
-    Serial.println("Expected Bluetooth clients:");
-    for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
-        Serial.println("  " + EXPECTED_BT_ADDRESSES[i]);
-    }
-    Serial.println("LED will blink until a client connects...");
+    Serial.println("Freematics Custom Starting...");
     
-    // Initialize the logger
     if (logger.init()) {
-        Serial.println("Logger initialized successfully");
+        Serial.println("Logger OK");
     } else {
-        Serial.println("Logger initialization failed");
+        Serial.println("Logger FAIL");
     }
     
-    Serial.println("Setup complete. Starting main loop...");
-    Serial.println("Waiting for Bluetooth connection...");
+    Serial.println("Ready");
 }
 
 void loop()
