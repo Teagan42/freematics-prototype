@@ -456,12 +456,51 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
             Serial.println("BLE RX: " + value);
             
             // Handle commands from BLE client
-            if (value == "SIM_ON" && logger) {
-                logger->setSimulationEnabled(true);
-                Serial.println("Simulation enabled via BLE command");
-            } else if (value == "SIM_OFF" && logger) {
-                logger->setSimulationEnabled(false);
-                Serial.println("Simulation disabled via BLE command");
+            if (value.startsWith("CMD:")) {
+                String command = value.substring(4); // Remove "CMD:" prefix
+                
+                if (command == "SIM_ON" && logger) {
+                    logger->setSimulationEnabled(true);
+                    Serial.println("Simulation enabled via BLE command");
+                    
+                    // Send immediate confirmation
+                    if (pCharacteristic) {
+                        String response = String(millis()) + ",STATUS:SIM_ENABLED;";
+                        pCharacteristic->setValue(response.c_str());
+                        pCharacteristic->notify();
+                    }
+                } else if (command == "SIM_OFF" && logger) {
+                    logger->setSimulationEnabled(false);
+                    Serial.println("Simulation disabled via BLE command");
+                    
+                    // Send immediate confirmation
+                    if (pCharacteristic) {
+                        String response = String(millis()) + ",STATUS:SIM_DISABLED;";
+                        pCharacteristic->setValue(response.c_str());
+                        pCharacteristic->notify();
+                    }
+                } else if (command == "STATUS" && logger) {
+                    Serial.println("Status request received via BLE");
+                    // Status will be sent in next sendBLEData() cycle
+                } else if (command == "PING") {
+                    Serial.println("Ping received via BLE");
+                    
+                    // Send pong response
+                    if (pCharacteristic) {
+                        String response = String(millis()) + ",PONG:OK;";
+                        pCharacteristic->setValue(response.c_str());
+                        pCharacteristic->notify();
+                    }
+                }
+            } else {
+                // Handle legacy commands without CMD: prefix for backward compatibility
+                if (value == "SIM_ON" && logger) {
+                    logger->setSimulationEnabled(true);
+                    Serial.println("Simulation enabled via BLE command (legacy)");
+                } else if (value == "SIM_OFF" && logger) {
+                    logger->setSimulationEnabled(false);
+                    Serial.println("Simulation disabled via BLE command (legacy)");
+                }
             }
         }
     }

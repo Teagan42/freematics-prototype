@@ -638,8 +638,11 @@
                                         };
                                         break;
                                     case 'MODE':
-                                        newData.dataMode = value;
-                                        newData.simulationRunning = (value === 'SIMULATED');
+                                        // Only update if the mode actually changed to prevent flashing
+                                        if (newData.dataMode !== value) {
+                                            newData.dataMode = value;
+                                            newData.simulationRunning = (value === 'SIMULATED');
+                                        }
                                         break;
                                     case 'ERROR':
                                         newData.lastError = value;
@@ -654,7 +657,10 @@
                                                 statusObj[statusKey] = statusValue;
                                             }
                                         });
-                                        newData.systemStatus = statusObj;
+                                        // Only update if status actually changed to prevent flashing
+                                        if (JSON.stringify(newData.systemStatus) !== JSON.stringify(statusObj)) {
+                                            newData.systemStatus = statusObj;
+                                        }
                                         break;
                                 }
                             }
@@ -716,11 +722,9 @@
             // Function to toggle simulation
             const toggleSimulation = () => {
                 if (data.simulationRunning) {
-                    sendCommand('STOP_SIM');
-                    setData(prev => ({ ...prev, simulationRunning: false }));
+                    sendCommand('SIM_OFF');
                 } else {
-                    sendCommand('START_SIM');
-                    setData(prev => ({ ...prev, simulationRunning: true }));
+                    sendCommand('SIM_ON');
                 }
             };
 
@@ -814,6 +818,14 @@
                             >
                                 {data.simulationRunning ? '⏹ Stop Simulation' : '▶ Start Simulation'}
                             </button>
+                            <button 
+                                style={{marginLeft: '10px', padding: '8px 16px', fontSize: '14px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: isConnected ? 'pointer' : 'not-allowed'}}
+                                onClick={() => sendCommand('STATUS')}
+                                disabled={!isConnected}
+                                title="Request current system status"
+                            >
+                                🔄 Refresh Status
+                            </button>
                         </h3>
                         <div>
                             <span className={`status-item ${data.dataMode.toLowerCase()}`}>
@@ -835,6 +847,10 @@
                                 <strong>Info:</strong> Simulated data is disabled. Click "Start Simulation" to begin receiving test data.
                             </div>
                         )}
+                        <div style={{marginTop: '10px', fontSize: '0.9em', color: '#6c757d'}}>
+                            <strong>Controls:</strong> Use the buttons above to start/stop simulation or refresh system status. 
+                            Simulation provides test data when no real vehicle is connected.
+                        </div>
                     </div>
 
                     <div className="metrics-grid">
