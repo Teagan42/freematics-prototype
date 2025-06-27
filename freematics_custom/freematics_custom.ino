@@ -20,6 +20,12 @@
 #define STATE_CONNECTED 0x40
 #define STATE_BLE_READY 0x80
 
+// Forward declarations
+class CustomFreematicsLogger;
+
+// Global instances
+CustomFreematicsLogger* logger = nullptr;
+
 // BLE Server and Characteristic
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
@@ -77,14 +83,14 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                     pCharacteristic->notify();
                 } else if (cmd == "START_SIM") {
                     Serial.println("Received START_SIM command from client");
-                    // Access the global OBD instance through the logger
-                    extern CustomFreematicsLogger logger;
-                    logger.setSimulationEnabled(true);
+                    if (logger) {
+                        logger->setSimulationEnabled(true);
+                    }
                 } else if (cmd == "STOP_SIM") {
                     Serial.println("Received STOP_SIM command from client");
-                    // Access the global OBD instance through the logger
-                    extern CustomFreematicsLogger logger;
-                    logger.setSimulationEnabled(false);
+                    if (logger) {
+                        logger->setSimulationEnabled(false);
+                    }
                 }
             }
         }
@@ -478,7 +484,7 @@ private:
 };
 
 
-CustomFreematicsLogger logger;
+CustomFreematicsLogger loggerInstance;
 
 void setup()
 {
@@ -487,7 +493,10 @@ void setup()
     
     Serial.println("Freematics Custom Starting...");
     
-    if (logger.init()) {
+    // Initialize global logger pointer
+    logger = &loggerInstance;
+    
+    if (logger->init()) {
         Serial.println("Logger OK");
     } else {
         Serial.println("Logger FAIL");
@@ -498,11 +507,11 @@ void setup()
 
 void loop()
 {
-    if (bleClientConnected) {
-        logger.process();
-    } else {
+    if (bleClientConnected && logger) {
+        logger->process();
+    } else if (logger) {
         // Just handle LED blinking while waiting for connection
-        logger.handleLedOnly();
+        logger->handleLedOnly();
     }
     delay(100);
 }
