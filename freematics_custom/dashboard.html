@@ -277,12 +277,7 @@
                     console.log('Connecting to GATT server...');
                     const server = await device.gatt.connect().catch(err => {
                         console.error(err);
-                        setError(`Connection failed: ${err.message}`);
-                        return;
-                        //if (err.name === 'NotFoundError') {
-                        //    throw new Error('No Freematics device found. Make sure the device is powered on and in range.');
-                        //}
-                        //throw err;
+                        throw new Error(`GATT connection failed: ${err.message}`);
                     });
 
 
