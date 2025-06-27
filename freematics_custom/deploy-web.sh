@@ -112,13 +112,15 @@ if [ -z "$SERVER" ]; then
 fi
 
 # Build SSH command options
-SSH_OPTS="-p $SSH_PORT"
+SSH_OPTS="-P $SSH_PORT"  # scp uses -P for port
+SSH_SSH_OPTS="-p $SSH_PORT"  # ssh uses -p for port
 if [ -n "$SSH_KEY" ]; then
     if [ ! -f "$SSH_KEY" ]; then
         print_error "SSH key file not found: $SSH_KEY"
         exit 1
     fi
     SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
+    SSH_SSH_OPTS="$SSH_SSH_OPTS -i $SSH_KEY"
 fi
 
 SSH_TARGET="$SSH_USER@$SERVER"
@@ -156,7 +158,7 @@ check_local_file() {
 test_ssh_connection() {
     print_info "Testing SSH connection to $SSH_TARGET..."
     
-    if ssh $SSH_OPTS -o ConnectTimeout=10 -o BatchMode=yes "$SSH_TARGET" "echo 'SSH connection successful'" 2>/dev/null; then
+    if ssh $SSH_SSH_OPTS -o ConnectTimeout=10 -o BatchMode=yes "$SSH_TARGET" "echo 'SSH connection successful'" 2>/dev/null; then
         print_status "SSH connection successful"
         return 0
     else
@@ -175,7 +177,7 @@ check_remote_permissions() {
     print_info "Checking remote permissions..."
     
     # Check if remote directory exists and is writable
-    if ssh $SSH_OPTS "$SSH_TARGET" "test -d $REMOTE_PATH && test -w $REMOTE_PATH" 2>/dev/null; then
+    if ssh $SSH_SSH_OPTS "$SSH_TARGET" "test -d $REMOTE_PATH && test -w $REMOTE_PATH" 2>/dev/null; then
         print_status "Remote directory is accessible and writable"
         return 0
     else
@@ -183,7 +185,7 @@ check_remote_permissions() {
         print_info "Attempting to create/fix permissions..."
         
         # Try to create directory and set permissions
-        if ssh $SSH_OPTS "$SSH_TARGET" "sudo mkdir -p $REMOTE_PATH && sudo chown $SSH_USER:$SSH_USER $REMOTE_PATH" 2>/dev/null; then
+        if ssh $SSH_SSH_OPTS "$SSH_TARGET" "sudo mkdir -p $REMOTE_PATH && sudo chown $SSH_USER:$SSH_USER $REMOTE_PATH" 2>/dev/null; then
             print_status "Remote directory permissions fixed"
             return 0
         else
@@ -212,7 +214,7 @@ deploy_html() {
         print_status "HTML file uploaded successfully"
         
         # Set appropriate permissions
-        if ssh $SSH_OPTS "$SSH_TARGET" "chmod 644 $REMOTE_PATH/$REMOTE_HTML_FILE"; then
+        if ssh $SSH_SSH_OPTS "$SSH_TARGET" "chmod 644 $REMOTE_PATH/$REMOTE_HTML_FILE"; then
             print_status "File permissions set correctly"
         else
             print_warning "Could not set file permissions (file may still work)"
@@ -234,7 +236,7 @@ verify_deployment() {
     print_info "Verifying deployment..."
     
     # Check if file exists and get its size
-    REMOTE_SIZE=$(ssh $SSH_OPTS "$SSH_TARGET" "stat -c%s $REMOTE_PATH/$REMOTE_HTML_FILE 2>/dev/null || echo 0")
+    REMOTE_SIZE=$(ssh $SSH_SSH_OPTS "$SSH_TARGET" "stat -c%s $REMOTE_PATH/$REMOTE_HTML_FILE 2>/dev/null || echo 0")
     LOCAL_SIZE=$(stat -f%z "$LOCAL_HTML_FILE" 2>/dev/null || stat -c%s "$LOCAL_HTML_FILE" 2>/dev/null || echo 0)
     
     if [ "$REMOTE_SIZE" -eq "$LOCAL_SIZE" ] && [ "$REMOTE_SIZE" -gt 0 ]; then
@@ -253,7 +255,7 @@ get_server_info() {
     print_info "Getting server information..."
     
     # Try to get server's public IP or hostname
-    SERVER_INFO=$(ssh $SSH_OPTS "$SSH_TARGET" "curl -s ifconfig.me 2>/dev/null || hostname -f 2>/dev/null || echo '$SERVER'" 2>/dev/null || echo "$SERVER")
+    SERVER_INFO=$(ssh $SSH_SSH_OPTS "$SSH_TARGET" "curl -s ifconfig.me 2>/dev/null || hostname -f 2>/dev/null || echo '$SERVER'" 2>/dev/null || echo "$SERVER")
     
     echo ""
     print_status "Deployment completed successfully!"
