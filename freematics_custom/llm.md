@@ -296,74 +296,68 @@ Key settings in `config.h`:
 
 **When adding new features, always check existing patterns and implement similar custom solutions rather than assuming modern ESP32 APIs are available.**
 
-## ⚠️ CRITICAL: Flash Memory Size Constraints - UNRESOLVED
+## ⚠️ CRITICAL: Compilation Error - Wire Library Missing
 
-**The sketch is STILL 128% of available flash space (1.68MB vs 1.31MB limit) and WILL NOT COMPILE.**
+**The sketch FAILS TO COMPILE due to missing Wire library include.**
 
-### Current Status (After Size Reduction Attempts):
-- **Sketch Size**: 1,681,902 bytes (128% of 1,310,720 byte limit) - NO IMPROVEMENT
-- **Memory Usage**: 62,564 bytes (19% of dynamic memory) - this is OK
-- **Problem**: Text section (code) still exceeds available space by ~370KB
+### Current Status (Latest Deployment Attempt):
+- **Compilation Error**: `'Wire' was not declared in this scope` at line 241
+- **Location**: `SimpleOBD::runFullDiagnostics()` function in I2C bus scanning section
+- **Root Cause**: Wire library was removed to reduce flash size but diagnostic code still uses it
+- **Problem**: Diagnostic function calls `Wire.begin(21, 22)` without proper include
 
-### Size Reduction Strategies ALREADY APPLIED:
-1. ✅ **Removed WiFi Library**: Eliminated `#include <WiFi.h>` and `#include <Wire.h>`
-2. ✅ **Moved Simulation to Client**: Eliminated device-side simulation code (~50KB)
-3. ✅ **Simplified Diagnostics**: Compact 7-test diagnostic framework
-4. ✅ **Simplified BLE Protocol**: Shortened field names (RPM, SPD, TEMP, etc.)
-5. ✅ **Maintained Core PIDs**: Kept essential OBD-II parameter support
-6. ✅ **Streamlined OBD Parsing**: Focused on real vehicle data collection
-7. ✅ **Client-Side Features**: Moved complex logic to web dashboard
-
-### LATEST REFACTORING RESULTS:
-After moving simulation logic to client-side and simplifying diagnostics:
-
-1. **Simulation Removal**: ~50KB of simulation code moved to web dashboard
-2. **Diagnostic Simplification**: Complex diagnostic state machine replaced with 7 simple tests
-3. **Focus on Real Data**: Device optimized for actual vehicle OBD-II collection
-4. **Client-Side Intelligence**: Web dashboard handles simulation and complex UI logic
-
-**STATUS: Refactoring complete - ready for size testing with latest changes**
-
-### EMERGENCY WORKAROUNDS REQUIRED:
-
-#### Option 1: Change Partition Scheme (RECOMMENDED)
-```bash
-# In Arduino IDE: Tools > Partition Scheme > "Huge APP (3MB No OTA/1MB SPIFFS)"
-# Or modify boards.txt to use larger app partition
+### Immediate Fix Required:
+The diagnostic system uses I2C bus scanning which requires the Wire library:
+```cpp
+Wire.begin(21, 22); // SDA=21, SCL=22
 ```
 
-#### Option 2: Minimal Sketch Approach
-Create a completely new minimal sketch with:
-- Basic BLE only (no OBD simulation)
-- Hard-coded test data instead of dynamic generation
-- No GPS simulation
-- No storage system
-- Minimal string usage
+### Size vs Functionality Trade-off:
+1. ❌ **Wire Library Removed**: Eliminated `#include <Wire.h>` to reduce flash size
+2. ❌ **Diagnostic Code Retained**: I2C scanning code still present but non-functional
+3. ⚠️ **Compilation Failure**: Code references undefined Wire object
 
-#### Option 3: Use Different Board Definition
-```bash
-# Try ESP32 Dev Module with different partition scheme
-# Or use ESP32-S3 with more flash memory
+### Resolution Options:
+1. **Add Wire Include**: Restore `#include <Wire.h>` (increases flash usage)
+2. **Remove I2C Diagnostics**: Comment out Wire-dependent diagnostic code
+3. **Conditional Compilation**: Use `#ifdef` to make I2C diagnostics optional
+
+**STATUS: COMPILATION BLOCKED - Wire library dependency must be resolved**
+
+### IMMEDIATE ACTIONS REQUIRED:
+
+#### Option 1: Fix Wire Library Dependency (RECOMMENDED)
+```cpp
+// Add to top of freematics_custom.ino:
+#include <Wire.h>
 ```
 
-### Immediate Actions Required:
-1. **STOP trying to reduce code size** - it's not working
-2. **Change partition scheme** to "Huge APP" or "No OTA"
-3. **Consider hardware upgrade** to ESP32-S3 with more flash
-4. **Test with minimal sketch** to verify BLE functionality first
-
-### Compilation Command with Partition Override:
-```bash
-arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=huge_app freematics_custom.ino
+#### Option 2: Remove I2C Diagnostics
+```cpp
+// Comment out Wire-dependent code in runFullDiagnostics():
+// Wire.begin(21, 22); // SDA=21, SCL=22
+// ... I2C scanning code ...
 ```
 
-**STATUS: REFACTORED - Test deployment with latest size optimizations**
+#### Option 3: Conditional I2C Support
+```cpp
+#ifdef ENABLE_I2C_DIAGNOSTICS
+#include <Wire.h>
+#endif
+```
+
+### Compilation Command Test:
+```bash
+cd freematics_custom && ./deploy.sh
+```
+
+**STATUS: COMPILATION BLOCKED - Must resolve Wire library dependency before testing**
 
 ### Next Steps:
-1. **Test Compilation**: Run `./deploy.sh` to check if size reduction was effective
-2. **Partition Scheme**: If still too large, change to "Huge APP" partition
-3. **Hardware Upgrade**: Consider ESP32-S3 with more flash memory
-4. **Minimal Build**: Create bare-bones version if needed
+1. **Fix Wire Include**: Add missing `#include <Wire.h>` to resolve compilation error
+2. **Test Compilation**: Run `./deploy.sh` to verify build success
+3. **Check Flash Usage**: Monitor if Wire library addition exceeds flash limits
+4. **Optimize if Needed**: Remove I2C diagnostics if flash space becomes critical
 
 ### Recent Changes Summary:
 - Moved 50KB+ simulation code to client-side JavaScript
@@ -376,10 +370,17 @@ arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=huge_app freematics
 - Improved user feedback for connection status and errors
 - Maintained full OBD-II protocol support for real data
 
-### Latest Bug Fixes (Commit ad844bc):
-- **Dashboard Simulation Crashes**: Fixed undefined data access in chart updates
+### Latest Status (Commit 4861484):
+- **Enhanced Diagnostics**: Comprehensive system health reporting with 12 test categories
+- **Dashboard Simulation**: Fixed undefined data access in chart updates with null coalescing
 - **Diagnostics Button**: Added proper connection validation and error handling
-- **Chart Updates**: Added null coalescing (|| 0) to prevent undefined value crashes
+- **Chart Updates**: Added fallback values (|| 0) to prevent undefined value crashes
 - **Data History**: Enhanced fallback logic for missing sensor data
 - **Command Protocol**: Improved error logging and user feedback for failed commands
 - **Connection Management**: Better BLE connection state checking and validation
+
+### Current Compilation Issue (Latest Deploy):
+- **Wire Library Missing**: Diagnostic I2C scanning code fails compilation
+- **Error Location**: Line 241 in `SimpleOBD::runFullDiagnostics()`
+- **Required Fix**: Add `#include <Wire.h>` or remove I2C diagnostic code
+- **Status**: COMPILATION BLOCKED until Wire dependency resolved
