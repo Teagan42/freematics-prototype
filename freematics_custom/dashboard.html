@@ -437,6 +437,8 @@
             
             const [diagnosticResults, setDiagnosticResults] = useState('');
             const [diagnosticRunning, setDiagnosticRunning] = useState(false);
+            const [diagnosticError, setDiagnosticError] = useState(null);
+            const [dataParseErrors, setDataParseErrors] = useState([]);
             
             // Expected API version - update this when making breaking changes
             const EXPECTED_API_VERSION = 1;
@@ -1016,11 +1018,15 @@
             };
 
             const handleDataReceived = (event) => {
-                const value = event.target.value;
-                const decoder = new TextDecoder();
-                const rawData = decoder.decode(value);
+                try {
+                    const value = event.target.value;
+                    const decoder = new TextDecoder();
+                    const rawData = decoder.decode(value);
 
-                console.log('BLE RX:', rawData);
+                    console.log('BLE RX:', rawData);
+                    
+                    // Clear any previous parse errors on successful decode
+                    setDataParseErrors(prev => prev.filter(err => err.type !== 'decode'));
 
                 // Add to raw data log with message type detection
                 const logEntry = {
@@ -1064,6 +1070,10 @@
 
                 // Parse the data format: messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;
                 try {
+                    // Validate raw data format before processing
+                    if (!rawData || typeof rawData !== 'string' || rawData.trim().length === 0) {
+                        throw new Error('Empty or invalid data received');
+                    }
                     // Handle message counter prefix (messageId:data)
                     let dataToProcess = rawData;
                     let messageId = null;
@@ -1242,17 +1252,48 @@
                                         }
                                         break;
                                     case 'DIAGNOSTIC_STARTED':
-                                        setDiagnosticRunning(true);
-                                        setDiagnosticResults('Diagnostic mode started... Running comprehensive system checks...');
+                                        try {
+                                            setDiagnosticRunning(true);
+                                            setDiagnosticError(null);
+                                            setDiagnosticResults('Diagnostic mode started... Running comprehensive system checks...');
+                                        } catch (diagError) {
+                                            console.error('Error handling diagnostic start:', diagError);
+                                            setDiagnosticError('Failed to start diagnostic process');
+                                        }
                                         break;
                                     case 'DIAGNOSTIC_RESULTS':
-                                        const results = value.replace(/\|/g, '\n'); // Convert pipe separators back to newlines
-                                        setDiagnosticResults(results);
+                                        try {
+                                            if (!value || typeof value !== 'string') {
+                                                throw new Error('Invalid diagnostic results format');
+                                            }
+                                            const results = value.replace(/\|/g, '\n'); // Convert pipe separators back to newlines
+                                            setDiagnosticResults(prev => {
+                                                const currentResults = prev || '';
+                                                return currentResults + (currentResults ? '\n' : '') + results;
+                                            });
+                                            setDiagnosticError(null);
+                                        } catch (diagError) {
+                                            console.error('Error processing diagnostic results:', diagError);
+                                            setDiagnosticError('Failed to process diagnostic results: ' + diagError.message);
+                                            setDiagnosticResults(prev => (prev || '') + '\n❌ Error processing results: ' + diagError.message);
+                                        }
                                         break;
                                     case 'DIAGNOSTIC_COMPLETE':
-                                        setDiagnosticRunning(false);
-                                        if (value === 'SUCCESS') {
-                                            setDiagnosticResults(prev => prev + '\n\n✅ Diagnostic completed successfully!');
+                                        try {
+                                            setDiagnosticRunning(false);
+                                            if (value === 'SUCCESS') {
+                                                setDiagnosticResults(prev => (prev || '') + '\n\n✅ Diagnostic completed successfully!');
+                                                setDiagnosticError(null);
+                                            } else if (value === 'FAILED' || value === 'ERROR') {
+                                                setDiagnosticResults(prev => (prev || '') + '\n\n❌ Diagnostic completed with errors!');
+                                                setDiagnosticError('Diagnostic process completed with errors');
+                                            } else {
+                                                setDiagnosticResults(prev => (prev || '') + '\n\n⚠️ Diagnostic completed with unknown status: ' + value);
+                                            }
+                                        } catch (diagError) {
+                                            console.error('Error handling diagnostic completion:', diagError);
+                                            setDiagnosticError('Failed to complete diagnostic process');
+                                            setDiagnosticRunning(false);
                                         }
                                         break;
                                 }
@@ -1313,8 +1354,36 @@
                     }
                 } catch (parseError) {
                     console.error('Error parsing data:', parseError);
+                    
+                    // Add parse error to error log with details
+                    const errorDetails = {
+                        timestamp: new Date().toLocaleTimeString(),
+                        type: 'parse',
+                        message: parseError.message,
+                        rawData: rawData ? rawData.substring(0, 100) + (rawData.length > 100 ? '...' : '') : 'null'
+                    };
+                    
+                    setDataParseErrors(prev => [...prev.slice(-9), errorDetails]); // Keep last 10 errors
+                    
+                    setRawDataLog(prev => [...prev.slice(-50), {
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: `PARSE ERROR: ${parseError.message} | Raw: ${errorDetails.rawData}`,
+                        type: 'error'
+                    }]);
                 }
-            };
+            } catch (outerError) {
+                console.error('Critical error in data handler:', outerError);
+                
+                setRawDataLog(prev => [...prev.slice(-50), {
+                    timestamp: new Date().toLocaleTimeString(),
+                    data: `CRITICAL ERROR: ${outerError.message} | Handler failed completely`,
+                    type: 'error'
+                }]);
+                
+                // Reset diagnostic state on critical errors
+                setDiagnosticRunning(false);
+                setDiagnosticError('Critical error in data processing');
+            }
 
             const handleDisconnection = () => {
                 console.log('Device disconnected');
@@ -1336,34 +1405,91 @@
                 }
             };
 
-            // Function to send commands to device
+            // Function to send commands to device with enhanced error handling
             const sendCommand = (command) => {
-                if (characteristic && device && device.gatt && device.gatt.connected) {
-                    try {
-                        const message = `CMD:${command}`;
-                        characteristic.writeValue(new TextEncoder().encode(message));
-                        console.log('Sent command:', message);
+                try {
+                    // Validate command input
+                    if (!command || typeof command !== 'string' || command.trim().length === 0) {
+                        throw new Error('Invalid command: empty or non-string command');
+                    }
+                    
+                    // Sanitize command to prevent injection
+                    const sanitizedCommand = command.trim().replace(/[^A-Z_]/g, '');
+                    if (sanitizedCommand !== command.trim()) {
+                        console.warn('Command sanitized:', command, '->', sanitizedCommand);
+                    }
+                    
+                    if (characteristic && device && device.gatt && device.gatt.connected) {
+                        try {
+                            const message = `CMD:${sanitizedCommand}`;
+                            
+                            // Validate message length
+                            if (message.length > 100) {
+                                throw new Error('Command too long: ' + message.length + ' characters');
+                            }
+                            
+                            characteristic.writeValue(new TextEncoder().encode(message));
+                            console.log('Sent command:', message);
+                            
+                            setRawDataLog(prev => [...prev.slice(-50), {
+                                timestamp: new Date().toLocaleTimeString(),
+                                data: 'TX: ' + message,
+                                type: 'tx'
+                            }]);
+                            
+                            // Special handling for diagnostic commands
+                            if (sanitizedCommand === 'DIAGNOSTIC') {
+                                setDiagnosticError(null);
+                                setTimeout(() => {
+                                    if (diagnosticRunning) {
+                                        setDiagnosticError('Diagnostic timeout - no response from device');
+                                        setDiagnosticRunning(false);
+                                    }
+                                }, 30000); // 30 second timeout
+                            }
+                            
+                        } catch (writeError) {
+                            console.error('BLE write failed:', writeError);
+                            setRawDataLog(prev => [...prev.slice(-50), {
+                                timestamp: new Date().toLocaleTimeString(),
+                                data: 'TX ERROR: BLE write failed for ' + sanitizedCommand + ' - ' + writeError.message,
+                                type: 'error'
+                            }]);
+                            
+                            if (sanitizedCommand === 'DIAGNOSTIC') {
+                                setDiagnosticError('Failed to send diagnostic command: ' + writeError.message);
+                                setDiagnosticRunning(false);
+                            }
+                        }
+                    } else {
+                        const connectionStatus = !device ? 'No device' : 
+                                               !device.gatt ? 'No GATT' : 
+                                               !device.gatt.connected ? 'Not connected' : 'Unknown state';
                         
-                        setRawDataLog(prev => [...prev, {
+                        console.warn('Cannot send command - device not connected:', connectionStatus);
+                        setRawDataLog(prev => [...prev.slice(-50), {
                             timestamp: new Date().toLocaleTimeString(),
-                            data: 'TX: ' + message,
-                            type: 'tx'
-                        }]);
-                    } catch (error) {
-                        console.error('Failed to send command:', error);
-                        setRawDataLog(prev => [...prev, {
-                            timestamp: new Date().toLocaleTimeString(),
-                            data: 'TX ERROR: Failed to send ' + command + ' - ' + error.message,
+                            data: `TX ERROR: ${connectionStatus}, cannot send ${sanitizedCommand}`,
                             type: 'error'
                         }]);
+                        
+                        if (sanitizedCommand === 'DIAGNOSTIC') {
+                            setDiagnosticError('Cannot run diagnostic: ' + connectionStatus);
+                            setDiagnosticRunning(false);
+                        }
                     }
-                } else {
-                    console.warn('Cannot send command - device not connected');
-                    setRawDataLog(prev => [...prev, {
+                } catch (commandError) {
+                    console.error('Command processing error:', commandError);
+                    setRawDataLog(prev => [...prev.slice(-50), {
                         timestamp: new Date().toLocaleTimeString(),
-                        data: 'TX ERROR: Device not connected, cannot send ' + command,
+                        data: 'COMMAND ERROR: ' + commandError.message,
                         type: 'error'
                     }]);
+                    
+                    if (command === 'DIAGNOSTIC') {
+                        setDiagnosticError('Command processing error: ' + commandError.message);
+                        setDiagnosticRunning(false);
+                    }
                 }
             };
 
@@ -1488,8 +1614,18 @@
                 }
             }, [isConnected]);
 
-            // Helper function to get color class based on value and type
+            // Helper function to get color class based on value and type with error handling
             const getColorClass = (value, type) => {
+                try {
+                    // Validate inputs
+                    if (value === null || value === undefined || isNaN(value)) {
+                        return 'info'; // Default for invalid values
+                    }
+                    
+                    const numValue = Number(value);
+                    if (!isFinite(numValue)) {
+                        return 'info'; // Default for infinite or NaN values
+                    }
                 switch (type) {
                     case 'rpm':
                         if (value > 6000) return 'danger';
@@ -1541,7 +1677,11 @@
                     default:
                         return 'info';
                 }
-            };
+            } catch (colorError) {
+                console.warn('Error determining color class:', colorError, 'value:', value, 'type:', type);
+                return 'info'; // Safe fallback
+            }
+        };
 
             return (
                 <div className="dashboard">
@@ -1860,28 +2000,98 @@
                         </div>
 
                         <div className={`tab-panel ${activeTab === 'diagnostics' ? 'active' : ''}`}>
+                            {/* Error Display Section */}
+                            {(diagnosticError || dataParseErrors.length > 0) && (
+                                <div style={{marginBottom: '20px'}}>
+                                    {diagnosticError && (
+                                        <div style={{
+                                            backgroundColor: '#f8d7da', 
+                                            color: '#721c24', 
+                                            padding: '10px', 
+                                            borderRadius: '5px',
+                                            marginBottom: '10px',
+                                            border: '1px solid #f5c6cb'
+                                        }}>
+                                            <strong>🚨 Diagnostic Error:</strong> {diagnosticError}
+                                            <button 
+                                                style={{
+                                                    marginLeft: '10px', 
+                                                    padding: '2px 8px', 
+                                                    fontSize: '0.8em', 
+                                                    backgroundColor: '#dc3545', 
+                                                    color: 'white', 
+                                                    border: 'none', 
+                                                    borderRadius: '3px',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => setDiagnosticError(null)}
+                                                title="Clear diagnostic error"
+                                            >
+                                                ✕ Clear
+                                            </button>
+                                        </div>
+                                    )}
+                                    
+                                    {dataParseErrors.length > 0 && (
+                                        <div style={{
+                                            backgroundColor: '#fff3cd', 
+                                            color: '#856404', 
+                                            padding: '10px', 
+                                            borderRadius: '5px',
+                                            border: '1px solid #ffeaa7'
+                                        }}>
+                                            <strong>⚠️ Data Parse Errors ({dataParseErrors.length}):</strong>
+                                            <button 
+                                                style={{
+                                                    marginLeft: '10px', 
+                                                    padding: '2px 8px', 
+                                                    fontSize: '0.8em', 
+                                                    backgroundColor: '#ffc107', 
+                                                    color: 'black', 
+                                                    border: 'none', 
+                                                    borderRadius: '3px',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => setDataParseErrors([])}
+                                                title="Clear parse errors"
+                                            >
+                                                ✕ Clear
+                                            </button>
+                                            <div style={{fontSize: '0.8em', marginTop: '5px', maxHeight: '100px', overflowY: 'auto'}}>
+                                                {dataParseErrors.slice(-3).map((error, idx) => (
+                                                    <div key={idx} style={{marginTop: '3px'}}>
+                                                        <strong>{error.timestamp}:</strong> {error.message}
+                                                        <br/><small>Data: {error.rawData}</small>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="compact-metrics">
                                 <div className="compact-metric">
                                     <div className="compact-value info">
-                                        {data.boostPressure} psi
+                                        {(data.boostPressure || 0)} psi
                                     </div>
                                     <div className="compact-label">Boost Pressure</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className="compact-value info">
-                                        {data.turboRpm.toLocaleString()} RPM
+                                        {(data.turboRpm || 0).toLocaleString()} RPM
                                     </div>
                                     <div className="compact-label">Turbo RPM</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.batteryVoltage, 'battery')}`}>
-                                        {data.batteryVoltage.toFixed(1)} V
+                                        {(data.batteryVoltage || 0).toFixed(1)} V
                                     </div>
                                     <div className="compact-label">Battery Voltage</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.enginePressure, 'pressure')}`}>
-                                        {data.enginePressure} psi
+                                        {(data.enginePressure || 0)} psi
                                     </div>
                                     <div className="compact-label">Engine Pressure</div>
                                 </div>
@@ -1890,12 +2100,12 @@
                             <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}}>
                                 <h4>System Health Summary</h4>
                                 <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.9em'}}>
-                                    <div><strong>Engine Load:</strong> {data.engineLoad}% {data.engineLoad > 85 ? '⚠️' : '✅'}</div>
-                                    <div><strong>Coolant Temp:</strong> {data.coolant}°F {data.coolant > 220 ? '🔥' : '✅'}</div>
-                                    <div><strong>Oil Temp:</strong> {data.oilTemp}°F {data.oilTemp > 250 ? '🔥' : '✅'}</div>
-                                    <div><strong>Fuel Level:</strong> {data.fuelLevel}% {data.fuelLevel < 25 ? '⛽' : '✅'}</div>
-                                    <div><strong>Battery:</strong> {data.batteryVoltage.toFixed(1)}V {data.batteryVoltage < 12.0 ? '🔋' : '✅'}</div>
-                                    <div><strong>Fuel Trim:</strong> {Math.abs(data.fuelTrimShort) > 10 ? '⚠️' : '✅'} ST: {data.fuelTrimShort}%</div>
+                                    <div><strong>Engine Load:</strong> {(data.engineLoad || 0)}% {(data.engineLoad || 0) > 85 ? '⚠️' : '✅'}</div>
+                                    <div><strong>Coolant Temp:</strong> {(data.coolant || 0)}°F {(data.coolant || 0) > 220 ? '🔥' : '✅'}</div>
+                                    <div><strong>Oil Temp:</strong> {(data.oilTemp || 0)}°F {(data.oilTemp || 0) > 250 ? '🔥' : '✅'}</div>
+                                    <div><strong>Fuel Level:</strong> {(data.fuelLevel || 0)}% {(data.fuelLevel || 0) < 25 ? '⛽' : '✅'}</div>
+                                    <div><strong>Battery:</strong> {(data.batteryVoltage || 0).toFixed(1)}V {(data.batteryVoltage || 0) < 12.0 ? '🔋' : '✅'}</div>
+                                    <div><strong>Fuel Trim:</strong> {Math.abs(data.fuelTrimShort || 0) > 10 ? '⚠️' : '✅'} ST: {(data.fuelTrimShort || 0)}%</div>
                                 </div>
                             </div>
 
@@ -1913,7 +2123,7 @@
                                 
                                 {diagnosticResults ? (
                                     <div style={{
-                                        backgroundColor: '#f8f9fa', 
+                                        backgroundColor: diagnosticError ? '#fff5f5' : '#f8f9fa', 
                                         padding: '10px', 
                                         borderRadius: '5px', 
                                         fontFamily: 'monospace', 
@@ -1921,15 +2131,37 @@
                                         whiteSpace: 'pre-wrap',
                                         maxHeight: '400px',
                                         overflowY: 'auto',
-                                        border: '1px solid #dee2e6'
+                                        border: diagnosticError ? '1px solid #f5c6cb' : '1px solid #dee2e6'
                                     }}>
                                         {diagnosticResults}
+                                        {diagnosticRunning && (
+                                            <div style={{
+                                                marginTop: '10px', 
+                                                padding: '5px', 
+                                                backgroundColor: '#e3f2fd', 
+                                                borderRadius: '3px',
+                                                textAlign: 'center',
+                                                animation: 'pulse 1.5s infinite'
+                                            }}>
+                                                🔄 Diagnostic in progress... Please wait.
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <div style={{padding: '20px', textAlign: 'center', color: '#6c757d', fontStyle: 'italic'}}>
-                                        Click "Run Full Diagnostic" to scan hardware, pins, buses, and system components.
-                                        <br />
-                                        This will help identify connection issues, hardware problems, and configuration errors.
+                                        {isConnected ? (
+                                            <>
+                                                Click "Run Full Diagnostic" to scan hardware, pins, buses, and system components.
+                                                <br />
+                                                This will help identify connection issues, hardware problems, and configuration errors.
+                                            </>
+                                        ) : (
+                                            <>
+                                                🔌 Connect to a device first to run diagnostics.
+                                                <br />
+                                                Diagnostics require an active BLE connection to the Freematics device.
+                                            </>
+                                        )}
                                     </div>
                                 )}
                                 
