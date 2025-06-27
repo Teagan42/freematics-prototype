@@ -1083,7 +1083,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                     Serial.println("Diagnostic mode requested via BLE");
                     
                     // Run diagnostics immediately and send results
-                    String diagnosticResults = loggerInstance.obd.runFullDiagnostics();
+                    String diagnosticResults = logger->obd.runFullDiagnostics();
                     Serial.println("Diagnostic results: " + diagnosticResults);
                     
                     // Send results via BLE
