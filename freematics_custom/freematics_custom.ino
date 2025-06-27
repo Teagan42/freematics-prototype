@@ -81,80 +81,42 @@ private:
     String lastError = "";
     unsigned long lastErrorTime = 0;
     
-    // Diagnostic methods
     String runHardwareDiagnostics() {
-        String results = "=== HARDWARE DIAGNOSTICS ===\\n";
+        String results = "HW DIAG:\\n";
         
-        // Test ADC pins
-        results += "ADC Pin Tests:\\n";
-        int adcPins[] = {36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13};
-        int adcCount = sizeof(adcPins) / sizeof(adcPins[0]);
-        
-        for (int i = 0; i < adcCount; i++) {
-            int pin = adcPins[i];
-            int value = analogRead(pin);
-            results += "  GPIO" + String(pin) + ": " + String(value) + " (";
-            if (value < 100) results += "LOW";
-            else if (value > 3900) results += "HIGH";
-            else results += "ANALOG";
-            results += ")\\n";
-        }
-        
-        // Test digital pins
-        results += "Digital Pin Tests:\\n";
-        int digitalPins[] = {2, 4, 5, 16, 17, 18, 19, 21, 22, 23};
-        int digitalCount = sizeof(digitalPins) / sizeof(digitalPins[0]);
-        
-        for (int i = 0; i < digitalCount; i++) {
-            int pin = digitalPins[i];
-            pinMode(pin, INPUT_PULLUP);
-            delay(10);
-            bool value = digitalRead(pin);
-            results += "  GPIO" + String(pin) + ": " + String(value ? "HIGH" : "LOW") + "\\n";
+        // Test key ADC pins only
+        int adcPins[] = {36, 39, 34, 35};
+        for (int i = 0; i < 4; i++) {
+            int value = analogRead(adcPins[i]);
+            results += "GPIO" + String(adcPins[i]) + ":" + String(value);
+            results += (value < 100) ? "(L)" : (value > 3900) ? "(H)" : "(A)";
+            results += "\\n";
         }
         
         // Test I2C bus
-        results += "I2C Bus Scan (SDA=21, SCL=22):\\n";
         Wire.begin(21, 22);
         int deviceCount = 0;
         for (byte addr = 1; addr < 127; addr++) {
             Wire.beginTransmission(addr);
             if (Wire.endTransmission() == 0) {
-                results += "  Device found at 0x" + String(addr, HEX) + "\\n";
+                results += "I2C:0x" + String(addr, HEX) + "\\n";
                 deviceCount++;
             }
         }
-        if (deviceCount == 0) {
-            results += "  No I2C devices found\\n";
-        }
-        
-        // Test SPI pins
-        results += "SPI Pin States (MISO=19, MOSI=23, SCK=18, SS=5):\\n";
-        pinMode(19, INPUT);
-        pinMode(23, INPUT);
-        pinMode(18, INPUT);
-        pinMode(5, INPUT);
-        results += "  MISO(19): " + String(digitalRead(19)) + "\\n";
-        results += "  MOSI(23): " + String(digitalRead(23)) + "\\n";
-        results += "  SCK(18): " + String(digitalRead(18)) + "\\n";
-        results += "  SS(5): " + String(digitalRead(5)) + "\\n";
+        if (deviceCount == 0) results += "I2C:NONE\\n";
         
         return results;
     }
     
     String runOBDDiagnostics() {
-        String results = "=== OBD-II DIAGNOSTICS ===\\n";
+        String results = "OBD DIAG:\\n";
         
-        // Test Serial2 (OBD interface)
-        results += "Serial2 OBD Interface Test:\\n";
         Serial2.begin(38400, SERIAL_8N1, 16, 17);
         delay(100);
         
-        // Send AT commands and check responses
-        String commands[] = {"ATZ", "ATE0", "ATL0", "ATS0", "ATH1", "ATSP0", "0100"};
-        int cmdCount = sizeof(commands) / sizeof(commands[0]);
-        
-        for (int i = 0; i < cmdCount; i++) {
+        // Test key AT commands
+        String commands[] = {"ATZ", "0100"};
+        for (int i = 0; i < 2; i++) {
             Serial2.println(commands[i]);
             delay(500);
             
@@ -167,99 +129,59 @@ private:
                 }
             }
             
-            results += "  " + commands[i] + " -> ";
-            if (response.length() > 0) {
-                results += response.substring(0, min(20, (int)response.length()));
-                if (response.length() > 20) results += "...";
-            } else {
-                results += "NO_RESPONSE";
-            }
+            results += commands[i] + ":";
+            results += (response.length() > 0) ? "OK" : "FAIL";
             results += "\\n";
-        }
-        
-        // Test alternative serial configurations
-        results += "Alternative Serial Configs:\\n";
-        int baudRates[] = {9600, 38400, 115200};
-        int baudCount = sizeof(baudRates) / sizeof(baudRates[0]);
-        
-        for (int i = 0; i < baudCount; i++) {
-            Serial2.begin(baudRates[i], SERIAL_8N1, 16, 17);
-            delay(100);
-            Serial2.println("ATZ");
-            delay(500);
-            
-            bool hasResponse = Serial2.available() > 0;
-            results += "  " + String(baudRates[i]) + " baud: " + (hasResponse ? "RESPONSE" : "NO_RESPONSE") + "\\n";
-            
-            // Clear buffer
-            while (Serial2.available()) Serial2.read();
         }
         
         return results;
     }
     
     String runSystemDiagnostics() {
-        String results = "=== SYSTEM DIAGNOSTICS ===\\n";
+        String results = "SYS DIAG:\\n";
         
-        // ESP32 system info
-        results += "ESP32 System Info:\\n";
-        results += "  Chip Model: " + String(ESP.getChipModel()) + "\\n";
-        results += "  Chip Revision: " + String(ESP.getChipRevision()) + "\\n";
-        results += "  CPU Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz\\n";
-        results += "  Flash Size: " + String(ESP.getFlashChipSize() / 1024 / 1024) + " MB\\n";
-        results += "  Free Heap: " + String(ESP.getFreeHeap() / 1024) + " KB\\n";
-        results += "  Uptime: " + String(millis() / 1000) + " seconds\\n";
+        results += "CPU:" + String(ESP.getCpuFreqMHz()) + "MHz\\n";
+        results += "Heap:" + String(ESP.getFreeHeap() / 1024) + "KB\\n";
+        results += "Uptime:" + String(millis() / 1000) + "s\\n";
         
-        // Power supply analysis
-        results += "Power Supply Analysis:\\n";
         int vin = analogRead(A0);
-        float voltage = (vin / 4095.0) * 3.3 * 6.0; // Assuming 6:1 voltage divider
-        results += "  Input Voltage: " + String(voltage, 2) + "V";
-        if (voltage < 11.0) results += " (LOW - Check power supply)";
-        else if (voltage > 15.0) results += " (HIGH - Check voltage regulator)";
-        else results += " (OK)";
+        float voltage = (vin / 4095.0) * 3.3 * 6.0;
+        results += "Vin:" + String(voltage, 1) + "V";
+        if (voltage < 11.0) results += "(LOW)";
+        else if (voltage > 15.0) results += "(HIGH)";
+        else results += "(OK)";
         results += "\\n";
         
-        // Internal temperature
         #ifdef SOC_TEMP_SENSOR_SUPPORTED
         float temp = temperatureRead();
-        results += "  Internal Temp: " + String(temp, 1) + "°C";
-        if (temp > 80) results += " (HOT - Check cooling)";
-        else results += " (OK)";
+        results += "Temp:" + String(temp, 0) + "C";
+        results += (temp > 80) ? "(HOT)" : "(OK)";
         results += "\\n";
         #endif
         
-        // WiFi/BLE coexistence
-        results += "Wireless Status:\\n";
-        results += "  BLE Active: " + String(BLEDevice::getInitialized() ? "YES" : "NO") + "\\n";
-        results += "  WiFi Active: " + String(WiFi.status() == WL_CONNECTED ? "YES" : "NO") + "\\n";
+        results += "BLE:" + String(BLEDevice::getInitialized() ? "Y" : "N") + "\\n";
         
         return results;
     }
     
     String runConnectivityDiagnostics() {
-        String results = "=== CONNECTIVITY DIAGNOSTICS ===\\n";
+        String results = "CONN DIAG:\\n";
         
-        // BLE diagnostics
-        results += "BLE Diagnostics:\\n";
-        results += "  BLE Initialized: " + String(BLEDevice::getInitialized() ? "YES" : "NO") + "\\n";
-        results += "  Client Connected: " + String(bleClientConnected ? "YES" : "NO") + "\\n";
-        results += "  Server Active: " + String(pServer != NULL ? "YES" : "NO") + "\\n";
-        results += "  Characteristic Active: " + String(pCharacteristic != NULL ? "YES" : "NO") + "\\n";
+        results += "BLE:" + String(BLEDevice::getInitialized() ? "Y" : "N") + "\\n";
+        results += "Client:" + String(bleClientConnected ? "Y" : "N") + "\\n";
+        results += "Server:" + String(pServer != NULL ? "Y" : "N") + "\\n";
         
         if (pServer) {
-            results += "  Connected Clients: " + String(pServer->getConnectedCount()) + "\\n";
+            results += "Clients:" + String(pServer->getConnectedCount()) + "\\n";
         }
         
-        // Test BLE transmission
         if (pCharacteristic && bleClientConnected) {
-            results += "  Testing BLE TX: ";
-            String testMsg = "DIAG_TEST:" + String(millis());
+            String testMsg = "TEST:" + String(millis());
             pCharacteristic->setValue(testMsg.c_str());
             pCharacteristic->notify();
-            results += "SENT\\n";
+            results += "TX:OK\\n";
         } else {
-            results += "  BLE TX Test: SKIPPED (no client)\\n";
+            results += "TX:SKIP\\n";
         }
         
         return results;
@@ -384,48 +306,32 @@ public:
     }
     
     String runFullDiagnostics() {
-        String fullResults = "";
-        fullResults += runSystemDiagnostics();
-        fullResults += "\\n";
-        fullResults += runHardwareDiagnostics();
-        fullResults += "\\n";
-        fullResults += runOBDDiagnostics();
-        fullResults += "\\n";
-        fullResults += runConnectivityDiagnostics();
-        fullResults += "\\n=== DIAGNOSTIC SUMMARY ===\\n";
+        String results = "";
+        results += runSystemDiagnostics();
+        results += runHardwareDiagnostics();
+        results += runOBDDiagnostics();
+        results += runConnectivityDiagnostics();
+        results += "SUMMARY:\\n";
         
-        // Analyze results and provide recommendations
-        if (fullResults.indexOf("NO_RESPONSE") != -1) {
-            fullResults += "⚠️ OBD-II communication issues detected\\n";
-            fullResults += "  - Check OBD cable connection\\n";
-            fullResults += "  - Verify vehicle ignition is ON\\n";
-            fullResults += "  - Try different baud rates\\n";
+        if (results.indexOf("FAIL") != -1) {
+            results += "OBD issues detected\\n";
         }
         
-        if (fullResults.indexOf("LOW - Check power supply") != -1) {
-            fullResults += "⚠️ Low voltage detected\\n";
-            fullResults += "  - Check 12V power connection\\n";
-            fullResults += "  - Verify vehicle battery health\\n";
+        if (results.indexOf("(LOW)") != -1) {
+            results += "Low voltage\\n";
         }
         
-        if (fullResults.indexOf("HOT - Check cooling") != -1) {
-            fullResults += "⚠️ High temperature detected\\n";
-            fullResults += "  - Ensure adequate ventilation\\n";
-            fullResults += "  - Check for excessive current draw\\n";
+        if (results.indexOf("(HOT)") != -1) {
+            results += "High temp\\n";
         }
         
-        if (fullResults.indexOf("Device found at") != -1) {
-            fullResults += "✅ I2C devices detected - sensors available\\n";
+        if (results.indexOf("I2C:0x") != -1) {
+            results += "I2C devices found\\n";
         }
         
-        if (bleClientConnected) {
-            fullResults += "✅ BLE connection active\\n";
-        } else {
-            fullResults += "ℹ️ No BLE client connected\\n";
-        }
-        
-        fullResults += "\\nDiagnostic completed at " + String(millis()) + "ms\\n";
-        return fullResults;
+        results += bleClientConnected ? "BLE connected\\n" : "No BLE client\\n";
+        results += "Done:" + String(millis()) + "ms\\n";
+        return results;
     }
     
     String getLastError() {
@@ -1156,52 +1062,24 @@ private:
         if (millis() - lastOBDTime < OBD_INTERVAL) return;
         
         int value;
-        // Core engine data (always try to read)
+        // Core engine data only
         if (obd.readPID(PID_RPM, value)) store.log(PID_RPM, value);
         if (obd.readPID(PID_SPEED, value)) store.log(PID_SPEED, value);
         if (obd.readPID(PID_COOLANT_TEMP, value)) store.log(PID_COOLANT_TEMP, value);
         if (obd.readPID(PID_ENGINE_LOAD, value)) store.log(PID_ENGINE_LOAD, value);
         if (obd.readPID(PID_THROTTLE_POS, value)) store.log(PID_THROTTLE_POS, value);
         
-        // Fuel system data
+        // Essential fuel data
         if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) store.log(PID_SHORT_TERM_FUEL_TRIM_1, value);
         if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) store.log(PID_LONG_TERM_FUEL_TRIM_1, value);
-        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_2, value)) store.log(PID_SHORT_TERM_FUEL_TRIM_2, value);
-        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_2, value)) store.log(PID_LONG_TERM_FUEL_TRIM_2, value);
-        if (obd.readPID(PID_FUEL_PRESSURE, value)) store.log(PID_FUEL_PRESSURE, value);
         if (obd.readPID(PID_FUEL_TANK_LEVEL, value)) store.log(PID_FUEL_TANK_LEVEL, value);
-        if (obd.readPID(PID_FUEL_TYPE, value)) store.log(PID_FUEL_TYPE, value);
-        if (obd.readPID(PID_ETHANOL_FUEL_PERCENT, value)) store.log(PID_ETHANOL_FUEL_PERCENT, value);
-        if (obd.readPID(PID_FUEL_INJECTION_TIMING, value)) store.log(PID_FUEL_INJECTION_TIMING, value);
-        if (obd.readPID(PID_ENGINE_FUEL_RATE, value)) store.log(PID_ENGINE_FUEL_RATE, value);
         
-        // Air intake system
-        if (obd.readPID(PID_INTAKE_MAP, value)) store.log(PID_INTAKE_MAP, value);
+        // Key sensors
         if (obd.readPID(PID_INTAKE_TEMP, value)) store.log(PID_INTAKE_TEMP, value);
         if (obd.readPID(PID_MAF_FLOW, value)) store.log(PID_MAF_FLOW, value);
-        if (obd.readPID(PID_TIMING_ADVANCE, value)) store.log(PID_TIMING_ADVANCE, value);
-        if (obd.readPID(PID_RELATIVE_THROTTLE_POS, value)) store.log(PID_RELATIVE_THROTTLE_POS, value);
-        if (obd.readPID(PID_ABSOLUTE_THROTTLE_POS_B, value)) store.log(PID_ABSOLUTE_THROTTLE_POS_B, value);
-        
-        // Emissions control
         if (obd.readPID(PID_O2_S1_VOLTAGE, value)) store.log(PID_O2_S1_VOLTAGE, value);
-        if (obd.readPID(PID_O2_S2_VOLTAGE, value)) store.log(PID_O2_S2_VOLTAGE, value);
-        if (obd.readPID(PID_O2_S3_VOLTAGE, value)) store.log(PID_O2_S3_VOLTAGE, value);
-        if (obd.readPID(PID_O2_S4_VOLTAGE, value)) store.log(PID_O2_S4_VOLTAGE, value);
-        if (obd.readPID(PID_COMMANDED_EGR, value)) store.log(PID_COMMANDED_EGR, value);
-        if (obd.readPID(PID_EGR_ERROR, value)) store.log(PID_EGR_ERROR, value);
-        if (obd.readPID(PID_COMMANDED_EVAP_PURGE, value)) store.log(PID_COMMANDED_EVAP_PURGE, value);
-        if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) store.log(PID_CATALYST_TEMP_B1S1, value);
-        if (obd.readPID(PID_CATALYST_TEMP_B2S1, value)) store.log(PID_CATALYST_TEMP_B2S1, value);
         
-        // Advanced diagnostics
-        if (obd.readPID(PID_ABSOLUTE_LOAD_VALUE, value)) store.log(PID_ABSOLUTE_LOAD_VALUE, value);
-        if (obd.readPID(PID_FUEL_AIR_COMMANDED_EQUIV_RATIO, value)) store.log(PID_FUEL_AIR_COMMANDED_EQUIV_RATIO, value);
-        if (obd.readPID(PID_ACCELERATOR_PEDAL_POS_D, value)) store.log(PID_ACCELERATOR_PEDAL_POS_D, value);
-        if (obd.readPID(PID_COMMANDED_THROTTLE_ACTUATOR, value)) store.log(PID_COMMANDED_THROTTLE_ACTUATOR, value);
-        if (obd.readPID(PID_ENGINE_OIL_TEMP, value)) store.log(PID_ENGINE_OIL_TEMP, value);
-        
-        // Hardware sensor PIDs (always available)
+        // Hardware sensors
         if (obd.readPID(PID_BATTERY_VOLTAGE, value)) store.log(PID_BATTERY_VOLTAGE, value);
         if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) store.log(PID_AMBIENT_AIR_TEMP, value);
         if (obd.readPID(PID_ENGINE_PRESSURE, value)) store.log(PID_ENGINE_PRESSURE, value);
@@ -1318,58 +1196,18 @@ private:
         }
         
         int value;
-        // Core engine data (primary display values)
+        // Essential data only
         if (obd.readPID(PID_RPM, value)) data += "RPM:" + String(value) + ";";
         if (obd.readPID(PID_SPEED, value)) data += "SPD:" + String(value) + ";";
         if (obd.readPID(PID_COOLANT_TEMP, value)) data += "COOLANT:" + String(value) + ";";
-        if (obd.readPID(PID_ENGINE_LOAD, value)) data += "LOAD:" + String(value) + ";";
-        if (obd.readPID(PID_THROTTLE_POS, value)) data += "THROTTLE:" + String(value) + ";";
-        
-        // Fuel system data
+        if (obd.readPID(PID_ENGINE_LOAD, value)) data += "ENGINE_LOAD:" + String(value) + ";";
+        if (obd.readPID(PID_THROTTLE_POS, value)) data += "THROTTLE_POS:" + String(value) + ";";
         if (obd.readPID(PID_FUEL_TANK_LEVEL, value)) data += "FUEL_LEVEL:" + String(value) + ";";
-        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) data += "STFT1:" + String(value) + ";";
-        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) data += "LTFT1:" + String(value) + ";";
-        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_2, value)) data += "STFT2:" + String(value) + ";";
-        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_2, value)) data += "LTFT2:" + String(value) + ";";
-        if (obd.readPID(PID_FUEL_PRESSURE, value)) data += "FUEL_PRESS:" + String(value) + ";";
-        if (obd.readPID(PID_FUEL_TYPE, value)) data += "FUEL_TYPE:" + String(value) + ";";
-        if (obd.readPID(PID_ETHANOL_FUEL_PERCENT, value)) data += "ETHANOL:" + String(value) + ";";
-        if (obd.readPID(PID_FUEL_INJECTION_TIMING, value)) data += "INJ_TIMING:" + String(value) + ";";
-        if (obd.readPID(PID_ENGINE_FUEL_RATE, value)) data += "FUEL_RATE:" + String(value) + ";";
-        
-        // Air intake system
-        if (obd.readPID(PID_INTAKE_MAP, value)) data += "MAP:" + String(value) + ";";
-        if (obd.readPID(PID_INTAKE_TEMP, value)) data += "IAT:" + String(value) + ";";
-        if (obd.readPID(PID_MAF_FLOW, value)) data += "MAF:" + String(value) + ";";
-        if (obd.readPID(PID_TIMING_ADVANCE, value)) data += "TIMING:" + String(value) + ";";
-        if (obd.readPID(PID_RELATIVE_THROTTLE_POS, value)) data += "REL_THROTTLE:" + String(value) + ";";
-        if (obd.readPID(PID_ABSOLUTE_THROTTLE_POS_B, value)) data += "ABS_THROTTLE_B:" + String(value) + ";";
-        
-        // Emissions data
-        if (obd.readPID(PID_O2_S1_VOLTAGE, value)) data += "O2S1:" + String(value) + ";";
-        if (obd.readPID(PID_O2_S2_VOLTAGE, value)) data += "O2S2:" + String(value) + ";";
-        if (obd.readPID(PID_O2_S3_VOLTAGE, value)) data += "O2S3:" + String(value) + ";";
-        if (obd.readPID(PID_O2_S4_VOLTAGE, value)) data += "O2S4:" + String(value) + ";";
-        if (obd.readPID(PID_COMMANDED_EGR, value)) data += "EGR:" + String(value) + ";";
-        if (obd.readPID(PID_EGR_ERROR, value)) data += "EGR_ERR:" + String(value) + ";";
-        if (obd.readPID(PID_COMMANDED_EVAP_PURGE, value)) data += "EVAP:" + String(value) + ";";
-        if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) data += "CAT_TEMP_B1S1:" + String(value) + ";";
-        if (obd.readPID(PID_CATALYST_TEMP_B2S1, value)) data += "CAT_TEMP_B2S1:" + String(value) + ";";
-        
-        // Advanced diagnostics
-        if (obd.readPID(PID_ABSOLUTE_LOAD_VALUE, value)) data += "ABS_LOAD:" + String(value) + ";";
-        if (obd.readPID(PID_FUEL_AIR_COMMANDED_EQUIV_RATIO, value)) data += "EQUIV_RATIO:" + String(value) + ";";
-        if (obd.readPID(PID_ACCELERATOR_PEDAL_POS_D, value)) data += "ACCEL_POS:" + String(value) + ";";
-        if (obd.readPID(PID_COMMANDED_THROTTLE_ACTUATOR, value)) data += "THROTTLE_CMD:" + String(value) + ";";
-        if (obd.readPID(PID_ENGINE_OIL_TEMP, value)) data += "OIL_TEMP:" + String(value) + ";";
-        
-        // System information
-        if (obd.readPID(PID_RUNTIME, value)) data += "RUNTIME:" + String(value) + ";";
-        if (obd.readPID(PID_DISTANCE_WITH_MIL, value)) data += "MIL_DIST:" + String(value) + ";";
-        if (obd.readPID(PID_WARMUPS_SINCE_CODES_CLEARED, value)) data += "WARMUPS:" + String(value) + ";";
-        if (obd.readPID(PID_DISTANCE_SINCE_CODES_CLEARED, value)) data += "CODES_DIST:" + String(value) + ";";
-        
-        // Hardware sensor data (should always be available)
+        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) data += "FUEL_TRIM_SHORT:" + String(value) + ";";
+        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) data += "FUEL_TRIM_LONG:" + String(value) + ";";
+        if (obd.readPID(PID_INTAKE_TEMP, value)) data += "INTAKE_TEMP:" + String(value) + ";";
+        if (obd.readPID(PID_MAF_FLOW, value)) data += "MAF_FLOW:" + String(value) + ";";
+        if (obd.readPID(PID_O2_S1_VOLTAGE, value)) data += "O2_VOLTAGE:" + String(value) + ";";
         if (obd.readPID(PID_BATTERY_VOLTAGE, value)) data += "BATTERY:" + String(value) + ";";
         if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) data += "AMBIENT:" + String(value) + ";";
         if (obd.readPID(PID_ENGINE_PRESSURE, value)) data += "PRESSURE:" + String(value) + ";";
