@@ -8,8 +8,6 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <Wire.h>
-#include <WiFi.h>
 #include "config.h"
 #include "telestore.h"
 
@@ -91,7 +89,6 @@ private:
         
         DiagTest tests[] = {
             {"ADC", []() { return analogRead(36) > 0; }},
-            {"I2C", []() { Wire.begin(21, 22); return true; }},
             {"OBD", []() { Serial2.begin(38400, SERIAL_8N1, 16, 17); delay(100); return true; }},
             {"BLE", []() { return BLEDevice::getInitialized(); }},
             {"VIN", []() { return analogRead(A0) > 100; }},
@@ -100,11 +97,11 @@ private:
             {"SERVER", []() { return pServer != NULL; }}
         };
         
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 7; i++) {
             results += tests[i].name;
             results += ":";
             results += tests[i].test() ? "OK" : "FAIL";
-            results += (i < 7) ? "," : "";
+            results += (i < 6) ? "," : "";
         }
         
         return results;
