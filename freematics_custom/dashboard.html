@@ -14,6 +14,15 @@
             margin: 0;
             padding: 20px;
             background-color: #f5f5f5;
+            color: #212529;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1a1a1a;
+                color: #e9ecef;
+            }
         }
         .dashboard {
             max-width: 1200px;
@@ -28,6 +37,13 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .header {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
         }
         .connect-btn {
             background: #007bff;
@@ -72,6 +88,13 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             text-align: center;
         }
+        
+        @media (prefers-color-scheme: dark) {
+            .metric-card {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        }
         .metric-value {
             font-size: 2.5em;
             font-weight: bold;
@@ -95,6 +118,13 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
+        
+        @media (prefers-color-scheme: dark) {
+            .chart-container {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        }
         .chart-wrapper {
             position: relative;
             height: 300px;
@@ -104,6 +134,13 @@
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .gps-container {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
         }
         .gps-coords {
             font-family: monospace;
@@ -118,6 +155,13 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-top: 20px;
         }
+        
+        @media (prefers-color-scheme: dark) {
+            .data-log {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        }
         .log-entry {
             font-family: monospace;
             font-size: 0.9em;
@@ -126,6 +170,12 @@
         }
         .log-entry:last-child {
             border-bottom: none;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .log-entry {
+                border-bottom: 1px solid #495057;
+            }
         }
         .log-entry.error {
             color: #dc3545;
@@ -187,6 +237,13 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
+        
+        @media (prefers-color-scheme: dark) {
+            .status-panel {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        }
         .status-item {
             display: inline-block;
             margin: 5px 10px;
@@ -239,6 +296,13 @@
             margin-bottom: 0;
             overflow-x: auto;
         }
+        
+        @media (prefers-color-scheme: dark) {
+            .tabs {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        }
         .tab {
             padding: 15px 20px;
             cursor: pointer;
@@ -262,6 +326,13 @@
             padding: 20px;
             margin-bottom: 20px;
         }
+        
+        @media (prefers-color-scheme: dark) {
+            .tab-content {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
+        }
         .tab-panel {
             display: none;
         }
@@ -280,6 +351,13 @@
             border-radius: 8px;
             text-align: center;
             border: 1px solid #dee2e6;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .compact-metric {
+                background: #3a3a3a;
+                border: 1px solid #495057;
+            }
         }
         .compact-value {
             font-size: 1.8em;
@@ -362,6 +440,12 @@
             useEffect(() => {
                 if (chartRef.current && !chartInstance.current) {
                     const ctx = chartRef.current.getContext('2d');
+                    
+                    // Detect dark mode
+                    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    const textColor = isDarkMode ? '#e9ecef' : '#666';
+                    const gridColor = isDarkMode ? '#495057' : '#e0e0e0';
+                    
                     chartInstance.current = new Chart(ctx, {
                         type: 'line',
                         data: {
@@ -392,7 +476,14 @@
                                     position: 'bottom',
                                     title: {
                                         display: true,
-                                        text: 'Time (seconds)'
+                                        text: 'Time (seconds)',
+                                        color: textColor
+                                    },
+                                    ticks: {
+                                        color: textColor
+                                    },
+                                    grid: {
+                                        color: gridColor
                                     }
                                 },
                                 y: {
@@ -401,7 +492,14 @@
                                     position: 'left',
                                     title: {
                                         display: true,
-                                        text: 'RPM'
+                                        text: 'RPM',
+                                        color: textColor
+                                    },
+                                    ticks: {
+                                        color: textColor
+                                    },
+                                    grid: {
+                                        color: gridColor
                                     }
                                 },
                                 y1: {
@@ -410,17 +508,28 @@
                                     position: 'right',
                                     title: {
                                         display: true,
-                                        text: 'Speed (mph)'
+                                        text: 'Speed (mph)',
+                                        color: textColor
+                                    },
+                                    ticks: {
+                                        color: textColor
                                     },
                                     grid: {
                                         drawOnChartArea: false,
+                                        color: gridColor
                                     },
                                 }
                             },
                             plugins: {
                                 title: {
                                     display: true,
-                                    text: 'Vehicle Data Over Time'
+                                    text: 'Vehicle Data Over Time',
+                                    color: textColor
+                                },
+                                legend: {
+                                    labels: {
+                                        color: textColor
+                                    }
                                 }
                             }
                         }
