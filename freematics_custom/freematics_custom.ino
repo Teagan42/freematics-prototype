@@ -4,6 +4,7 @@
 * Compatible with ESP32 Arduino Core 3.2.0+
 *************************************************************************/
 
+#include <Wire.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
