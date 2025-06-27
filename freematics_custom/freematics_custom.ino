@@ -31,15 +31,53 @@ bool ledState = false;
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         bleClientConnected = true;
-        Serial.println("BLE client connected");
+        Serial.println("=== BLE CLIENT CONNECTED ===");
+        Serial.println("Client MAC: " + String(pServer->getConnId()));
         Serial.println("Starting data collection...");
+        
+        // Send immediate connection confirmation
+        if (pCharacteristic) {
+            String connectMsg = "0:" + String(millis()) + ",CONNECT:SUCCESS;";
+            pCharacteristic->setValue(connectMsg.c_str());
+            pCharacteristic->notify();
+            Serial.println("BLE TX CONNECT: " + connectMsg);
+        }
     };
 
     void onDisconnect(BLEServer* pServer) {
         bleClientConnected = false;
-        Serial.println("BLE client disconnected");
-        Serial.println("Stopping data collection, waiting for BLE client...");
+        Serial.println("=== BLE CLIENT DISCONNECTED ===");
+        Serial.println("Reason: Client initiated or connection lost");
+        Serial.println("Restarting advertising...");
         BLEDevice::startAdvertising();
+        Serial.println("Waiting for new BLE client connection...");
+    }
+};
+
+// BLE Characteristic Callbacks for receiving data from client
+class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic* pCharacteristic) {
+        String value = pCharacteristic->getValue();
+        if (value.length() > 0) {
+            Serial.println("BLE RX: " + value);
+            
+            // Process commands from client
+            if (value.startsWith("CMD:")) {
+                String cmd = value.substring(4);
+                if (cmd == "RESET") {
+                    Serial.println("Received RESET command from client");
+                    ESP.restart();
+                } else if (cmd == "STATUS") {
+                    Serial.println("Received STATUS request from client");
+                    // Status will be sent in next cycle
+                } else if (cmd == "PING") {
+                    Serial.println("Received PING from client");
+                    String pong = String(millis()) + ",PONG:OK;";
+                    pCharacteristic->setValue(pong.c_str());
+                    pCharacteristic->notify();
+                }
+            }
+        }
     }
 };
 
@@ -174,6 +212,7 @@ public:
                             BLECharacteristic::PROPERTY_NOTIFY
                           );
 
+        pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
         pCharacteristic->addDescriptor(new BLE2902());
 
         pService->start();

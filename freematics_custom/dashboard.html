@@ -134,6 +134,52 @@
             border-radius: 4px;
             margin: 2px 0;
         }
+        .log-entry.status {
+            color: #0c5460;
+            background-color: #d1ecf1;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 2px 0;
+        }
+        .log-entry.heartbeat {
+            color: #155724;
+            background-color: #d4edda;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin: 1px 0;
+            font-size: 0.8em;
+        }
+        .log-entry.connect {
+            color: #004085;
+            background-color: #cce5ff;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 2px 0;
+            font-weight: bold;
+        }
+        .log-entry.disconnect {
+            color: #721c24;
+            background-color: #f5c6cb;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 2px 0;
+            font-weight: bold;
+        }
+        .log-entry.tx {
+            color: #856404;
+            background-color: #fff3cd;
+            padding: 6px 8px;
+            border-radius: 4px;
+            margin: 1px 0;
+            font-style: italic;
+        }
+        .log-entry.system {
+            color: #6c757d;
+            background-color: #f8f9fa;
+            padding: 6px 8px;
+            border-radius: 4px;
+            margin: 1px 0;
+        }
         .status-panel {
             background: white;
             padding: 20px;
@@ -297,6 +343,13 @@
                     }
 
                     console.log('Requesting Bluetooth device...');
+                    
+                    // Add connection event to log
+                    setRawDataLog(prev => [...prev, {
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: 'Initiating Bluetooth connection...',
+                        type: 'system'
+                    }]);
                     const device = await navigator.bluetooth.requestDevice({
                         acceptAllDevices: true,
                         optionalServices: [
@@ -413,6 +466,22 @@
                         await characteristic.startNotifications();
                         characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
                         console.log('Notifications started successfully');
+                        
+                        // Send initial ping to device
+                        setTimeout(() => {
+                            if (characteristic && device.gatt.connected) {
+                                const pingMessage = 'CMD:PING';
+                                characteristic.writeValue(new TextEncoder().encode(pingMessage));
+                                console.log('Sent ping to device:', pingMessage);
+                                
+                                setRawDataLog(prev => [...prev, {
+                                    timestamp: new Date().toLocaleTimeString(),
+                                    data: 'TX: ' + pingMessage,
+                                    type: 'tx'
+                                }]);
+                            }
+                        }, 1000);
+                        
                     } else if (characteristic.properties.read) {
                         console.log('Device supports read but not notifications, will poll for data');
                         // Set up polling for read-only characteristics
@@ -434,6 +503,13 @@
                     setIsConnected(true);
 
                     device.addEventListener('gattserverdisconnected', handleDisconnection);
+                    
+                    // Log successful connection
+                    setRawDataLog(prev => [...prev, {
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: `Connected to ${device.name || 'Unknown Device'}`,
+                        type: 'connect'
+                    }]);
 
                 } catch (err) {
                     console.error('Connection failed:', err);
@@ -446,17 +522,44 @@
                 const decoder = new TextDecoder();
                 const rawData = decoder.decode(value);
 
-                console.log('Received data:', rawData);
+                console.log('BLE RX:', rawData);
 
-                // Add to raw data log
-                setRawDataLog(prev => [...prev.slice(-20), {
+                // Add to raw data log with message type detection
+                const logEntry = {
                     timestamp: new Date().toLocaleTimeString(),
-                    data: rawData
-                }]);
+                    data: rawData,
+                    type: 'data'
+                };
 
-                // Parse the data format: timestamp,RPM:value;SPD:value;GPS:lat,lng;
+                // Detect message types for better logging
+                if (rawData.includes('ERROR:')) {
+                    logEntry.type = 'error';
+                } else if (rawData.includes('STATUS:')) {
+                    logEntry.type = 'status';
+                } else if (rawData.includes('HEARTBEAT:')) {
+                    logEntry.type = 'heartbeat';
+                } else if (rawData.includes('CONNECT:')) {
+                    logEntry.type = 'connect';
+                } else if (rawData.includes('PONG:')) {
+                    logEntry.type = 'pong';
+                }
+
+                setRawDataLog(prev => [...prev.slice(-50), logEntry]);
+
+                // Parse the data format: messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;
                 try {
-                    const parts = rawData.split(',');
+                    // Handle message counter prefix (messageId:data)
+                    let dataToProcess = rawData;
+                    let messageId = null;
+                    
+                    if (rawData.includes(':') && rawData.match(/^\d+:/)) {
+                        const colonIndex = rawData.indexOf(':');
+                        messageId = parseInt(rawData.substring(0, colonIndex));
+                        dataToProcess = rawData.substring(colonIndex + 1);
+                        console.log('Message ID:', messageId, 'Data:', dataToProcess);
+                    }
+                    
+                    const parts = dataToProcess.split(',');
                     if (parts.length >= 2) {
                         const timestamp = parseInt(parts[0]);
                         const dataString = parts.slice(1).join(',');
@@ -553,6 +656,13 @@
                 setIsConnected(false);
                 setDevice(null);
                 setCharacteristic(null);
+                
+                // Log disconnection
+                setRawDataLog(prev => [...prev, {
+                    timestamp: new Date().toLocaleTimeString(),
+                    data: 'Device disconnected',
+                    type: 'disconnect'
+                }]);
             };
 
             const disconnect = () => {
@@ -560,6 +670,32 @@
                     device.gatt.disconnect();
                 }
             };
+
+            // Function to send commands to device
+            const sendCommand = (command) => {
+                if (characteristic && device && device.gatt.connected) {
+                    const message = `CMD:${command}`;
+                    characteristic.writeValue(new TextEncoder().encode(message));
+                    console.log('Sent command:', message);
+                    
+                    setRawDataLog(prev => [...prev, {
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: 'TX: ' + message,
+                        type: 'tx'
+                    }]);
+                }
+            };
+
+            // Periodic ping to keep connection alive
+            useEffect(() => {
+                if (isConnected) {
+                    const pingInterval = setInterval(() => {
+                        sendCommand('PING');
+                    }, 30000); // Ping every 30 seconds
+
+                    return () => clearInterval(pingInterval);
+                }
+            }, [isConnected]);
 
             // Helper function to get color class based on value and type
             const getColorClass = (value, type) => {
@@ -706,18 +842,34 @@
                     </div>
 
                     <div className="data-log">
-                        <h3>Raw Data Log</h3>
-                        {rawDataLog.slice(-10).reverse().map((entry, index) => {
-                            const isError = entry.data.includes('ERROR:') || entry.data.includes('STATUS:');
-                            return (
-                                <div key={index} className={`log-entry ${isError ? 'error' : ''}`}>
-                                    <strong>{entry.timestamp}:</strong> {entry.data}
-                                </div>
-                            );
-                        })}
+                        <h3>Raw Data Log 
+                            <button 
+                                style={{marginLeft: '10px', padding: '5px 10px', fontSize: '0.8em'}}
+                                onClick={() => sendCommand('STATUS')}
+                                disabled={!isConnected}
+                            >
+                                Request Status
+                            </button>
+                            <button 
+                                style={{marginLeft: '5px', padding: '5px 10px', fontSize: '0.8em'}}
+                                onClick={() => setRawDataLog([])}
+                            >
+                                Clear Log
+                            </button>
+                        </h3>
+                        {rawDataLog.slice(-20).reverse().map((entry, index) => (
+                            <div key={index} className={`log-entry ${entry.type || 'data'}`}>
+                                <strong>{entry.timestamp}:</strong> {entry.data}
+                            </div>
+                        ))}
                         {rawDataLog.length === 0 && (
                             <div className="log-entry">No data received yet...</div>
                         )}
+                        <div style={{marginTop: '10px', fontSize: '0.9em', color: '#6c757d'}}>
+                            Total messages: {rawDataLog.length} | 
+                            Connected: {isConnected ? 'Yes' : 'No'} |
+                            Last update: {rawDataLog.length > 0 ? rawDataLog[rawDataLog.length - 1].timestamp : 'Never'}
+                        </div>
                     </div>
                 </div>
             );
