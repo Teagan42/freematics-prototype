@@ -1783,6 +1783,11 @@
                             if (numValue > 200) return { text: 'Hot', color: 'warning' };
                             if (numValue > 160) return { text: 'Normal', color: 'normal' };
                             return { text: 'Cold', color: 'normal' };
+                        case 'atmospheric':
+                            if (numValue < 950) return { text: 'Very Low (High Alt)', color: 'info' };
+                            if (numValue < 1000) return { text: 'Low Pressure', color: 'info' };
+                            if (numValue > 1040) return { text: 'High Pressure', color: 'info' };
+                            return { text: 'Normal', color: 'normal' };
                         case 'pressure':
                             if (numValue < 10) return { text: 'Critical Low', color: 'danger' };
                             if (numValue < 20) return { text: 'Low', color: 'warning' };
@@ -1820,7 +1825,14 @@
                     rpm: `Engine RPM measures crankshaft rotation speed. Normal: 600-900 idle, 1500-4000 driving. Higher RPM = more power but more fuel consumption.`,
                     speed: `Vehicle speed from transmission/wheel sensors. Measured in miles per hour (mph).`,
                     coolant: `Engine coolant temperature. Critical for preventing overheating. Normal: 180-220°F. Warning: >220°F. Danger: >240°F.`,
-                    enginePressure: `Oil pressure in lubrication system. Normal: 10-25 psi idle, 25-65 psi driving. <10 psi can cause engine damage.`,
+                    atmosphericPressure: `Atmospheric pressure measured by device barometric sensor. Used for altitude compensation and weather monitoring.
+                                            <br/><strong>Sea Level:</strong> ~1013 mbar (14.7 psi)
+                                            <br/><strong>High Altitude:</strong> Lower pressure
+                                            <br/><strong>Weather:</strong> Varies with conditions`,
+                    enginePressure: `Engine oil pressure from OBD-II system. Critical for engine lubrication.
+                                            <br/><strong>Idle:</strong> 10-25 psi
+                                            <br/><strong>Driving:</strong> 25-65 psi
+                                            <br/><strong>Warning:</strong> &lt;10 psi (potential engine damage)`,
                     batteryVoltage: `Electrical system voltage. Engine off: 12.4-12.8V (good battery). Running: 13.8-14.4V (charging). <12.0V indicates problems.`,
                     ambientTemp: `Outside air temperature. Affects engine performance and cooling efficiency. Hot weather reduces power.`,
                     engineLoad: `How hard the engine works vs maximum capacity. Normal: 20-40% city, 40-70% highway. >85% sustained is high stress.`,
@@ -1872,6 +1884,8 @@
                         if (value > 220) return 'danger';
                         if (value > 200) return 'warning';
                         return 'normal';
+                    case 'atmospheric':
+                        return 'info'; // Atmospheric pressure is informational
                     case 'pressure':
                         if (value < 10) return 'danger';
                         if (value < 20) return 'warning';
@@ -2058,22 +2072,22 @@
                             <div className="metric-tooltip">{getTooltipContent('coolant', data.coolant)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">Engine Pressure <span className="metric-info">?</span></div>
-                            <div className={`metric-value ${getColorClass(data.enginePressure, 'pressure')}`}>{data.enginePressure} <small>psi</small></div>
-                            <span className={`range-indicator ${getRangeInfo(data.enginePressure, 'pressure').color}`}>
-                                {getRangeInfo(data.enginePressure, 'pressure').text}
+                            <div className="metric-label">Atmospheric Pressure <span className="metric-info">?</span></div>
+                            <div className={`metric-value ${getColorClass(data.enginePressure, 'atmospheric')}`}>{data.enginePressure} <small>mbar</small></div>
+                            <span className={`range-indicator ${getRangeInfo(data.enginePressure, 'atmospheric').color}`}>
+                                {getRangeInfo(data.enginePressure, 'atmospheric').text}
                             </span>
                             {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
-                            <div className="metric-tooltip">{getTooltipContent('enginePressure', data.enginePressure)}</div>
+                            <div className="metric-tooltip">{getTooltipContent('atmosphericPressure', data.enginePressure)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">Battery Voltage <span className="metric-info">?</span></div>
+                            <div className="metric-label">Device Input Voltage <span className="metric-info">?</span></div>
                             <div className={`metric-value ${getColorClass(data.batteryVoltage, 'battery')}`}>{data.batteryVoltage.toFixed(1)} <small>V</small></div>
                             <span className={`range-indicator ${getRangeInfo(data.batteryVoltage, 'battery').color}`}>
                                 {getRangeInfo(data.batteryVoltage, 'battery').text}
                             </span>
                             {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
-                            <div className="metric-tooltip">{getTooltipContent('batteryVoltage', data.batteryVoltage)}</div>
+                            <div className="metric-tooltip">{getTooltipContent('deviceVoltage', data.batteryVoltage)}</div>
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Ambient Temp <span className="metric-info">?</span></div>
@@ -2674,13 +2688,13 @@
                                     <div className={`compact-value ${getColorClass(data.batteryVoltage, 'battery')}`}>
                                         {(data.batteryVoltage || 0).toFixed(1)} V
                                     </div>
-                                    <div className="compact-label">Battery Voltage</div>
+                                    <div className="compact-label">Device Input Voltage</div>
                                 </div>
                                 <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.enginePressure, 'pressure')}`}>
-                                        {(data.enginePressure || 0)} psi
+                                    <div className={`compact-value ${getColorClass(data.enginePressure, 'atmospheric')}`}>
+                                        {(data.enginePressure || 0)} mbar
                                     </div>
-                                    <div className="compact-label">Engine Pressure</div>
+                                    <div className="compact-label">Atmospheric Pressure</div>
                                 </div>
                             </div>
                             

@@ -490,17 +490,20 @@ private:
     bool readHardwareSensor(uint8_t pid, int& value) {
         // Read directly from Freematics hardware sensors
         switch(pid) {
-            case 0x42: // PID_BATTERY_VOLTAGE and PID_CONTROL_MODULE_VOLTAGE (same value)
-                value = readBatteryVoltage();
-                return true;
-            case 0x46: // PID_AMBIENT_AIR_TEMP and PID_AMBIENT_TEMPERATURE (same value)
+            case 0x42: // PID_CONTROL_MODULE_VOLTAGE - only use for OBD voltage
+                // Don't provide device voltage as OBD voltage
+                return false;
+            case 0x46: // PID_AMBIENT_AIR_TEMP - only use real ambient sensor
                 value = readAmbientTemperature();
                 return true;
-            case PID_ENGINE_PRESSURE: // Engine oil pressure (if available via hardware)
-                value = readEnginePressure();
-                return true;
+            case PID_ENGINE_PRESSURE: // Engine oil pressure - OBD only
+                // Don't provide atmospheric pressure as engine pressure
+                return false;
             case PID_ABSOLUTE_BAROMETRIC_PRESSURE: // Atmospheric pressure
                 value = readBarometricPressure();
+                return true;
+            case 0xF0: // Custom PID for device input voltage
+                value = readDeviceInputVoltage();
                 return true;
             default:
                 return false; // Not a hardware sensor PID
@@ -582,8 +585,8 @@ private:
         }
     }
     
-    int readBatteryVoltage() {
-        // Read vehicle input voltage (Vin) from ADC
+    int readDeviceInputVoltage() {
+        // Read device input voltage (Vin) from ADC
         // Freematics ONE+ has Vin connected to A0 with voltage divider
         int adcValue = analogRead(A0);
         // Freematics ONE+ voltage divider: Vin -> 10K -> A0 -> 2K -> GND
@@ -619,15 +622,8 @@ private:
         #endif
     }
     
-    int readEnginePressure() {
-        // Read engine oil pressure if sensor is connected
-        // This would typically be connected to an analog input
-        // For now, return a reasonable default since most setups won't have this
-        return 35 + random(-5, 5); // Typical oil pressure in psi
-    }
-    
     int readBarometricPressure() {
-        // Read atmospheric pressure (standard atmosphere at sea level)
+        // Read atmospheric pressure from device barometric sensor
         // Could be connected to BMP280 or similar sensor
         // For now, return standard atmospheric pressure with small variation
         return 1013 + random(-10, 10); // Standard atmosphere in mbar
@@ -1141,9 +1137,13 @@ private:
         if (obd.readPID(PID_MAF_FLOW, value)) store.log(PID_MAF_FLOW, value);
         if (obd.readPID(PID_O2_S1_VOLTAGE, value)) store.log(PID_O2_S1_VOLTAGE, value);
         
-        // Hardware sensors
-        if (obd.readPID(PID_BATTERY_VOLTAGE, value)) store.log(PID_BATTERY_VOLTAGE, value);
+        // Hardware sensors (using custom PIDs to avoid confusion with OBD-II)
+        if (obd.readPID(0xF0, value)) store.log(0xF0, value); // Device input voltage
         if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) store.log(PID_AMBIENT_AIR_TEMP, value);
+        if (obd.readPID(PID_ABSOLUTE_BAROMETRIC_PRESSURE, value)) store.log(PID_ABSOLUTE_BAROMETRIC_PRESSURE, value);
+        
+        // Try to get real OBD-II data for these if available
+        if (obd.readPID(PID_CONTROL_MODULE_VOLTAGE, value)) store.log(PID_CONTROL_MODULE_VOLTAGE, value);
         if (obd.readPID(PID_ENGINE_PRESSURE, value)) store.log(PID_ENGINE_PRESSURE, value);
         
         lastOBDTime = millis();
@@ -1268,9 +1268,15 @@ private:
         if (obd.readPID(PID_INTAKE_TEMP, value)) data += "INTAKE_TEMP:" + String(value) + ";";
         if (obd.readPID(PID_MAF_FLOW, value)) data += "MAF_FLOW:" + String(value) + ";";
         if (obd.readPID(PID_O2_S1_VOLTAGE, value)) data += "O2_VOLTAGE:" + String(value) + ";";
-        if (obd.readPID(PID_BATTERY_VOLTAGE, value)) data += "BATTERY:" + String(value) + ";";
+        
+        // Device hardware sensors
+        if (obd.readPID(0xF0, value)) data += "BATTERY:" + String(value) + ";"; // Device input voltage
         if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) data += "AMBIENT:" + String(value) + ";";
-        if (obd.readPID(PID_ENGINE_PRESSURE, value)) data += "PRESSURE:" + String(value) + ";";
+        if (obd.readPID(PID_ABSOLUTE_BAROMETRIC_PRESSURE, value)) data += "PRESSURE:" + String(value) + ";";
+        
+        // Real OBD-II data if available
+        if (obd.readPID(PID_CONTROL_MODULE_VOLTAGE, value)) data += "OBD_BATTERY:" + String(value) + ";";
+        if (obd.readPID(PID_ENGINE_PRESSURE, value)) data += "OIL_PRESSURE:" + String(value) + ";";
         
         // Additional engine parameters for UI synchronization
         if (obd.readPID(PID_ENGINE_OIL_TEMP, value)) data += "OIL_TEMP:" + String(value) + ";";
