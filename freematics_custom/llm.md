@@ -103,7 +103,9 @@ messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;SAT:count;MODE:status;
 2:12345,MODE:REAL;RPM:1500;SPD:60;GPS:37.774900,-122.419400;SAT:7;BATTERY:1250;
 3:13345,STATUS:OBD=REAL,GPS=OK,STORAGE=OK,BLE=OK,API_VERSION=1,UPTIME=13;
 4:14345,HEARTBEAT:OK;
-5:15345,DIAG:ADC:OK,OBD:OK,BLE:OK,VIN:OK,HEAP:OK,CLIENT:OK,SERVER:OK;
+5:15345,DIAGNOSTIC_STARTED:RUNNING;
+6:16345,DIAGNOSTIC_RESULTS:ADC Test: PASS|OBD Interface: PASS|BLE Stack: PASS;
+7:17345,DIAGNOSTIC_COMPLETE:SUCCESS;
 ```
 
 ### Message Types
@@ -111,7 +113,8 @@ messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;SAT:count;MODE:status;
 - **Status Messages**: System component status with averaging
 - **Heartbeat Messages**: Keep-alive signals every 2 seconds
 - **Command Responses**: PONG, status confirmations, diagnostic results
-- **Diagnostic Messages**: Hardware test results in compact format
+- **Diagnostic Messages**: Multi-stage diagnostic process with detailed results
+- **Error Messages**: Connection failures and command errors with proper logging
 
 ### Data Codes
 
