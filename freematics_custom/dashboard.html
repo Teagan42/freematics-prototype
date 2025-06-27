@@ -75,9 +75,13 @@
         .metric-value {
             font-size: 2.5em;
             font-weight: bold;
-            color: #007bff;
             margin: 10px 0;
+            transition: color 0.3s ease;
         }
+        .metric-value.normal { color: #28a745; }
+        .metric-value.warning { color: #ffc107; }
+        .metric-value.danger { color: #dc3545; }
+        .metric-value.info { color: #007bff; }
         .metric-label {
             color: #6c757d;
             font-size: 0.9em;
@@ -147,6 +151,9 @@
                 rpm: 0,
                 speed: 0,
                 coolant: 0,
+                enginePressure: 0,
+                batteryVoltage: 0,
+                ambientTemp: 0,
                 gps: { lat: 0, lng: 0, satellites: 0 },
                 timestamp: 0
             });
@@ -173,7 +180,7 @@
                                     yAxisID: 'y'
                                 },
                                 {
-                                    label: 'Speed (km/h)',
+                                    label: 'Speed (mph)',
                                     data: [],
                                     borderColor: '#28a745',
                                     backgroundColor: 'rgba(40, 167, 69, 0.1)',
@@ -208,7 +215,7 @@
                                     position: 'right',
                                     title: {
                                         display: true,
-                                        text: 'Speed (km/h)'
+                                        text: 'Speed (mph)'
                                     },
                                     grid: {
                                         drawOnChartArea: false,
@@ -439,10 +446,22 @@
                                         newData.rpm = parseInt(value) || 0;
                                         break;
                                     case 'SPD':
-                                        newData.speed = parseInt(value) || 0;
+                                        // Convert km/h to mph
+                                        newData.speed = Math.round((parseInt(value) || 0) * 0.621371);
                                         break;
                                     case 'COOLANT':
-                                        newData.coolant = parseInt(value) || 0;
+                                        // Convert Celsius to Fahrenheit
+                                        newData.coolant = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        break;
+                                    case 'PRESSURE':
+                                        newData.enginePressure = parseInt(value) || 0;
+                                        break;
+                                    case 'BATTERY':
+                                        newData.batteryVoltage = (parseInt(value) || 0) / 100; // Assuming value is in centivolt
+                                        break;
+                                    case 'AMBIENT':
+                                        // Convert Celsius to Fahrenheit
+                                        newData.ambientTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
                                         break;
                                     case 'GPS':
                                         const coords = value.split(',');
@@ -465,7 +484,10 @@
                             timestamp: Date.now(),
                             rpm: newData.rpm,
                             speed: newData.speed,
-                            coolant: newData.coolant
+                            coolant: newData.coolant,
+                            enginePressure: newData.enginePressure,
+                            batteryVoltage: newData.batteryVoltage,
+                            ambientTemp: newData.ambientTemp
                         }].slice(-100)); // Keep last 100 entries
                     }
                 } catch (parseError) {
@@ -483,6 +505,38 @@
             const disconnect = () => {
                 if (device && device.gatt.connected) {
                     device.gatt.disconnect();
+                }
+            };
+
+            // Helper function to get color class based on value and type
+            const getColorClass = (value, type) => {
+                switch (type) {
+                    case 'rpm':
+                        if (value > 6000) return 'danger';
+                        if (value > 4000) return 'warning';
+                        return 'normal';
+                    case 'speed':
+                        if (value > 80) return 'danger';
+                        if (value > 60) return 'warning';
+                        return 'normal';
+                    case 'coolant':
+                        if (value > 220) return 'danger';
+                        if (value > 200) return 'warning';
+                        return 'normal';
+                    case 'pressure':
+                        if (value < 10) return 'danger';
+                        if (value < 20) return 'warning';
+                        return 'normal';
+                    case 'battery':
+                        if (value < 11.5) return 'danger';
+                        if (value < 12.0) return 'warning';
+                        return 'normal';
+                    case 'ambient':
+                        if (value > 100) return 'danger';
+                        if (value > 85) return 'warning';
+                        return 'normal';
+                    default:
+                        return 'info';
                 }
             };
 
@@ -526,19 +580,31 @@
                     <div className="metrics-grid">
                         <div className="metric-card">
                             <div className="metric-label">Engine RPM</div>
-                            <div className="metric-value">{data.rpm.toLocaleString()}</div>
+                            <div className={`metric-value ${getColorClass(data.rpm, 'rpm')}`}>{data.rpm.toLocaleString()}</div>
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Speed</div>
-                            <div className="metric-value">{data.speed} <small>km/h</small></div>
+                            <div className={`metric-value ${getColorClass(data.speed, 'speed')}`}>{data.speed} <small>mph</small></div>
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Coolant Temp</div>
-                            <div className="metric-value">{data.coolant}°C</div>
+                            <div className={`metric-value ${getColorClass(data.coolant, 'coolant')}`}>{data.coolant}°F</div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Engine Pressure</div>
+                            <div className={`metric-value ${getColorClass(data.enginePressure, 'pressure')}`}>{data.enginePressure} <small>psi</small></div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Battery Voltage</div>
+                            <div className={`metric-value ${getColorClass(data.batteryVoltage, 'battery')}`}>{data.batteryVoltage.toFixed(1)} <small>V</small></div>
+                        </div>
+                        <div className="metric-card">
+                            <div className="metric-label">Ambient Temp</div>
+                            <div className={`metric-value ${getColorClass(data.ambientTemp, 'ambient')}`}>{data.ambientTemp}°F</div>
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">GPS Satellites</div>
-                            <div className="metric-value">{data.gps.satellites}</div>
+                            <div className="metric-value info">{data.gps.satellites}</div>
                         </div>
                     </div>
 
