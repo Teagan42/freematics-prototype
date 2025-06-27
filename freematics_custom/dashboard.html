@@ -342,6 +342,10 @@
                 background: #3a3a3a;
                 border: 1px solid #495057;
             }
+            .tab-content {
+                background: #2d2d2d;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            }
         }
         .compact-value {
             font-size: 1.8em;
@@ -353,6 +357,12 @@
             font-size: 0.85em;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+        
+        @media (prefers-color-scheme: dark) {
+            .compact-label {
+                color: #adb5bd;
+            }
         }
         @media (max-width: 768px) {
             .dashboard {
@@ -2098,9 +2108,9 @@
                                 </div>
                             </div>
                             
-                            <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}}>
-                                <h4>System Health Summary</h4>
-                                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.9em'}}>
+                            <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                <h4 style={{color: '#212529', marginBottom: '15px'}}>System Health Summary</h4>
+                                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.9em', color: '#495057'}}>
                                     <div><strong>Engine Load:</strong> {(data.engineLoad || 0)}% {(data.engineLoad || 0) > 85 ? '⚠️' : '✅'}</div>
                                     <div><strong>Coolant Temp:</strong> {(data.coolant || 0)}°F {(data.coolant || 0) > 220 ? '🔥' : '✅'}</div>
                                     <div><strong>Oil Temp:</strong> {(data.oilTemp || 0)}°F {(data.oilTemp || 0) > 250 ? '🔥' : '✅'}</div>
@@ -2110,8 +2120,8 @@
                                 </div>
                             </div>
 
-                            <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px'}}>
-                                <h4>Hardware Diagnostics 
+                            <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                <h4 style={{color: '#212529', marginBottom: '15px'}}>Hardware Diagnostics 
                                     <button 
                                         style={{marginLeft: '10px', padding: '5px 10px', fontSize: '0.8em', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: isConnected && !diagnosticRunning ? 'pointer' : 'not-allowed'}}
                                         onClick={() => sendCommand('DIAGNOSTIC')}
@@ -2124,49 +2134,61 @@
                                 
                                 {diagnosticResults ? (
                                     <div style={{
-                                        backgroundColor: diagnosticError ? '#fff5f5' : '#f8f9fa', 
-                                        padding: '10px', 
+                                        backgroundColor: diagnosticError ? '#fff5f5' : '#ffffff', 
+                                        color: diagnosticError ? '#721c24' : '#212529',
+                                        padding: '15px', 
                                         borderRadius: '5px', 
                                         fontFamily: 'monospace', 
-                                        fontSize: '0.8em', 
+                                        fontSize: '0.85em', 
                                         whiteSpace: 'pre-wrap',
                                         maxHeight: '400px',
                                         overflowY: 'auto',
-                                        border: diagnosticError ? '1px solid #f5c6cb' : '1px solid #dee2e6'
+                                        border: diagnosticError ? '2px solid #dc3545' : '2px solid #28a745',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                                     }}>
                                         {diagnosticResults}
                                         {diagnosticRunning && (
                                             <div style={{
-                                                marginTop: '10px', 
-                                                padding: '5px', 
-                                                backgroundColor: '#e3f2fd', 
-                                                borderRadius: '3px',
+                                                marginTop: '15px', 
+                                                padding: '10px', 
+                                                backgroundColor: '#cce5ff', 
+                                                color: '#004085',
+                                                borderRadius: '5px',
                                                 textAlign: 'center',
-                                                animation: 'pulse 1.5s infinite'
+                                                border: '1px solid #007bff',
+                                                fontWeight: 'bold'
                                             }}>
                                                 🔄 Diagnostic in progress... Please wait.
                                             </div>
                                         )}
                                     </div>
                                 ) : (
-                                    <div style={{padding: '20px', textAlign: 'center', color: '#6c757d', fontStyle: 'italic'}}>
+                                    <div style={{
+                                        padding: '25px', 
+                                        textAlign: 'center', 
+                                        color: '#495057', 
+                                        backgroundColor: '#ffffff',
+                                        border: '2px dashed #dee2e6',
+                                        borderRadius: '8px',
+                                        fontSize: '0.9em'
+                                    }}>
                                         {isConnected ? (
                                             <>
-                                                Click "Run Full Diagnostic" to scan hardware, pins, buses, and system components.
-                                                <br />
+                                                <strong>Click "Run Full Diagnostic" to scan hardware, pins, buses, and system components.</strong>
+                                                <br /><br />
                                                 This will help identify connection issues, hardware problems, and configuration errors.
                                             </>
                                         ) : (
                                             <>
-                                                🔌 Connect to a device first to run diagnostics.
-                                                <br />
+                                                <strong>🔌 Connect to a device first to run diagnostics.</strong>
+                                                <br /><br />
                                                 Diagnostics require an active BLE connection to the Freematics device.
                                             </>
                                         )}
                                     </div>
                                 )}
                                 
-                                <div style={{marginTop: '10px', fontSize: '0.85em', color: '#6c757d'}}>
+                                <div style={{marginTop: '15px', fontSize: '0.85em', color: '#495057', backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '5px', border: '1px solid #e9ecef'}}>
                                     <strong>Diagnostic Features:</strong><br/>
                                     • ADC pin voltage testing (GPIO 36, 39, 34, 35, 32, 33, etc.)<br/>
                                     • Digital pin state checking (GPIO 2, 4, 5, 16, 17, 18, etc.)<br/>
