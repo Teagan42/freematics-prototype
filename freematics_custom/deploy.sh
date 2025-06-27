@@ -72,8 +72,13 @@ detect_freematics() {
     echo "Connected devices:"
     echo "$BOARDS"
     
-    # Look for ESP32 or Freematics device
-    PORT=$(echo "$BOARDS" | grep -i -E "(esp32|freematics|cp210|ch340)" | head -1 | awk '{print $1}')
+    # Look for USB serial devices first, then ESP32 or Freematics device
+    PORT=$(echo "$BOARDS" | grep -i -E "(usbserial|cp210|ch340)" | head -1 | awk '{print $1}')
+    
+    # If no USB serial found, look for ESP32 devices (but not Bluetooth)
+    if [ -z "$PORT" ]; then
+        PORT=$(echo "$BOARDS" | grep -i "esp32" | grep -v -i "bluetooth" | head -1 | awk '{print $1}')
+    fi
     
     if [ -z "$PORT" ]; then
         print_warning "Freematics device not automatically detected"
