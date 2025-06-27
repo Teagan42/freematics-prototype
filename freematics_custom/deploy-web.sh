@@ -136,12 +136,20 @@ echo ""
 
 # Check if local HTML file exists
 check_local_file() {
-    if [ ! -f "$LOCAL_HTML_FILE" ]; then
+    # Try to find the HTML file in current directory or freematics_custom subdirectory
+    if [ -f "$LOCAL_HTML_FILE" ]; then
+        print_status "Local HTML file found: $LOCAL_HTML_FILE"
+    elif [ -f "freematics_custom/$LOCAL_HTML_FILE" ]; then
+        LOCAL_HTML_FILE="freematics_custom/$LOCAL_HTML_FILE"
+        print_status "Local HTML file found: $LOCAL_HTML_FILE"
+    else
         print_error "Local HTML file not found: $LOCAL_HTML_FILE"
-        print_info "Make sure you're running this script from the freematics_custom directory"
+        print_info "Searched in:"
+        echo "  - Current directory: ./$LOCAL_HTML_FILE"
+        echo "  - Freematics directory: ./freematics_custom/$LOCAL_HTML_FILE"
+        print_info "Make sure the dashboard.html file exists in one of these locations"
         exit 1
     fi
-    print_status "Local HTML file found: $LOCAL_HTML_FILE"
 }
 
 # Test SSH connection
