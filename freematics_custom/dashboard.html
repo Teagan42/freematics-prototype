@@ -1065,20 +1065,6 @@
 
             return (
                 <div className="dashboard">
-                    <div className="header">
-                        <h1>Freematics BLE Dashboard</h1>
-                        <div className="status">
-                            <div className={`status-indicator ${isConnected ? 'connected' : ''}`}></div>
-                            <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-                            <button
-                                className="connect-btn"
-                                onClick={isConnected ? disconnect : connectToDevice}
-                                disabled={!navigator.bluetooth}
-                            >
-                                {isConnected ? 'Disconnect' : 'Connect to Freematics'}
-                            </button>
-                        </div>
-                    </div>
 
                     {error && (
                         <div className="error-message">
@@ -1102,6 +1088,18 @@
 
                     <div className="status-panel">
                         <h3>System Status
+                            <div className="status" style={{display: 'inline-flex', alignItems: 'center', marginLeft: '20px'}}>
+                                <div className={`status-indicator ${isConnected ? 'connected' : ''}`}></div>
+                                <span style={{marginLeft: '8px', marginRight: '10px'}}>{isConnected ? 'Connected' : 'Disconnected'}</span>
+                                <button
+                                    className="connect-btn"
+                                    onClick={isConnected ? disconnect : connectToDevice}
+                                    disabled={!navigator.bluetooth}
+                                    style={{marginRight: '10px'}}
+                                >
+                                    {isConnected ? 'Disconnect' : 'Connect to Freematics'}
+                                </button>
+                            </div>
                             <button 
                                 className={`sim-control-btn ${data.simulationRunning ? 'stop' : ''}`}
                                 onClick={toggleSimulation}
