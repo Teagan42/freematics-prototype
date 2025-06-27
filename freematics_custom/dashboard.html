@@ -87,6 +87,8 @@
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             text-align: center;
+            position: relative;
+            cursor: help;
         }
         
         @media (prefers-color-scheme: dark) {
@@ -317,6 +319,64 @@
                 box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             }
         }
+        .metric-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8em;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            pointer-events: none;
+            max-width: 300px;
+            white-space: normal;
+            text-align: left;
+            line-height: 1.4;
+        }
+        .metric-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+        }
+        .metric-card:hover .metric-tooltip,
+        .compact-metric:hover .metric-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        .metric-info {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            background: #007bff;
+            color: white;
+            border-radius: 50%;
+            font-size: 0.7em;
+            line-height: 16px;
+            text-align: center;
+            margin-left: 5px;
+            cursor: help;
+            vertical-align: middle;
+        }
+        .range-indicator {
+            font-size: 0.7em;
+            color: #6c757d;
+            margin-top: 5px;
+            display: block;
+        }
+        .range-indicator.normal { color: #28a745; }
+        .range-indicator.warning { color: #ffc107; }
+        .range-indicator.danger { color: #dc3545; }
         .tab-panel {
             display: none;
         }
@@ -335,6 +395,8 @@
             border-radius: 8px;
             text-align: center;
             border: 1px solid #dee2e6;
+            position: relative;
+            cursor: help;
         }
         
         @media (prefers-color-scheme: dark) {
@@ -1838,38 +1900,62 @@
 
                     <div className="metrics-grid">
                         <div className="metric-card">
-                            <div className="metric-label">Engine RPM</div>
+                            <div className="metric-label">Engine RPM <span className="metric-info">?</span></div>
                             <div className={`metric-value ${getColorClass(data.rpm, 'rpm')}`}>{data.rpm.toLocaleString()}</div>
+                            <span className={`range-indicator ${getRangeInfo(data.rpm, 'rpm').color}`}>
+                                {getRangeInfo(data.rpm, 'rpm').text}
+                            </span>
                             {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) && <small style={{color: '#856404'}}>Simulated Data</small>}
                             {data.dataMode === 'DISABLED' && !clientSimulation.enabled && <small style={{color: '#6c757d'}}>No Data</small>}
+                            <div className="metric-tooltip">{getTooltipContent('rpm', data.rpm)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">Speed</div>
+                            <div className="metric-label">Speed <span className="metric-info">?</span></div>
                             <div className={`metric-value ${getColorClass(data.speed, 'speed')}`}>{data.speed} <small>mph</small></div>
+                            <span className={`range-indicator ${getRangeInfo(data.speed, 'speed').color}`}>
+                                {getRangeInfo(data.speed, 'speed').text}
+                            </span>
                             {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <div className="metric-tooltip">{getTooltipContent('speed', data.speed)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">Coolant Temp</div>
+                            <div className="metric-label">Coolant Temp <span className="metric-info">?</span></div>
                             <div className={`metric-value ${getColorClass(data.coolant, 'coolant')}`}>{data.coolant}°F</div>
+                            <span className={`range-indicator ${getRangeInfo(data.coolant, 'coolant').color}`}>
+                                {getRangeInfo(data.coolant, 'coolant').text}
+                            </span>
                             {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <div className="metric-tooltip">{getTooltipContent('coolant', data.coolant)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">Engine Pressure</div>
+                            <div className="metric-label">Engine Pressure <span className="metric-info">?</span></div>
                             <div className={`metric-value ${getColorClass(data.enginePressure, 'pressure')}`}>{data.enginePressure} <small>psi</small></div>
+                            <span className={`range-indicator ${getRangeInfo(data.enginePressure, 'pressure').color}`}>
+                                {getRangeInfo(data.enginePressure, 'pressure').text}
+                            </span>
                             {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <div className="metric-tooltip">{getTooltipContent('enginePressure', data.enginePressure)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">Battery Voltage</div>
+                            <div className="metric-label">Battery Voltage <span className="metric-info">?</span></div>
                             <div className={`metric-value ${getColorClass(data.batteryVoltage, 'battery')}`}>{data.batteryVoltage.toFixed(1)} <small>V</small></div>
+                            <span className={`range-indicator ${getRangeInfo(data.batteryVoltage, 'battery').color}`}>
+                                {getRangeInfo(data.batteryVoltage, 'battery').text}
+                            </span>
                             {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <div className="metric-tooltip">{getTooltipContent('batteryVoltage', data.batteryVoltage)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">Ambient Temp</div>
+                            <div className="metric-label">Ambient Temp <span className="metric-info">?</span></div>
                             <div className={`metric-value ${getColorClass(data.ambientTemp, 'ambient')}`}>{data.ambientTemp}°F</div>
+                            <span className={`range-indicator ${getRangeInfo(data.ambientTemp, 'ambient').color}`}>
+                                {getRangeInfo(data.ambientTemp, 'ambient').text}
+                            </span>
                             {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <div className="metric-tooltip">{getTooltipContent('ambientTemp', data.ambientTemp)}</div>
                         </div>
                         <div className="metric-card">
-                            <div className="metric-label">GPS Satellites</div>
+                            <div className="metric-label">GPS Satellites <span className="metric-info">?</span></div>
                             <div className="metric-value info">
                                 {data.gps.satellites}
                                 {data.gps.satelliteIndicator && (
@@ -1878,6 +1964,10 @@
                                     </small>
                                 )}
                             </div>
+                            <span className={`range-indicator ${data.gps.satellites >= 8 ? 'normal' : data.gps.satellites >= 6 ? 'warning' : 'danger'}`}>
+                                {data.gps.satellites >= 8 ? 'Excellent' : data.gps.satellites >= 6 ? 'Good' : data.gps.satellites >= 4 ? 'Minimum' : 'Poor'}
+                            </span>
+                            <div className="metric-tooltip">{getTooltipContent('satellites', data.gps.satellites)}</div>
                         </div>
 
                         <div className={`tab-panel ${activeTab === 'reference' ? 'active' : ''}`}>
@@ -2221,49 +2311,81 @@
                                     <div className={`compact-value ${getColorClass(data.engineLoad, 'engineLoad')}`}>
                                         {data.engineLoad}%
                                     </div>
-                                    <div className="compact-label">Engine Load</div>
+                                    <div className="compact-label">Engine Load <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.engineLoad, 'engineLoad').color}`}>
+                                        {getRangeInfo(data.engineLoad, 'engineLoad').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('engineLoad', data.engineLoad)}</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.throttlePos, 'throttle')}`}>
                                         {data.throttlePos}%
                                     </div>
-                                    <div className="compact-label">Throttle Position</div>
+                                    <div className="compact-label">Throttle Position <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${data.throttlePos > 90 ? 'warning' : 'normal'}`}>
+                                        {data.throttlePos > 90 ? 'Wide Open' : data.throttlePos > 50 ? 'High' : data.throttlePos > 20 ? 'Moderate' : data.throttlePos > 0 ? 'Light' : 'Closed'}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('throttlePos', data.throttlePos)}</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.fuelLevel, 'fuelLevel')}`}>
                                         {data.fuelLevel}%
                                     </div>
-                                    <div className="compact-label">Fuel Level</div>
+                                    <div className="compact-label">Fuel Level <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelLevel, 'fuelLevel').color}`}>
+                                        {getRangeInfo(data.fuelLevel, 'fuelLevel').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelLevel', data.fuelLevel)}</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.intakeTemp, 'ambient')}`}>
                                         {data.intakeTemp}°F
                                     </div>
-                                    <div className="compact-label">Intake Temp</div>
+                                    <div className="compact-label">Intake Temp <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${data.intakeTemp > 120 ? 'warning' : data.intakeTemp > 70 ? 'normal' : 'cold'}`}>
+                                        {data.intakeTemp > 120 ? 'Hot' : data.intakeTemp > 70 ? 'Normal' : 'Cold'}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('intakeTemp', data.intakeTemp)}</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.oilTemp, 'oilTemp')}`}>
                                         {data.oilTemp}°F
                                     </div>
-                                    <div className="compact-label">Oil Temp</div>
+                                    <div className="compact-label">Oil Temp <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${data.oilTemp > 250 ? 'danger' : data.oilTemp > 220 ? 'warning' : data.oilTemp > 180 ? 'normal' : 'cold'}`}>
+                                        {data.oilTemp > 250 ? 'Too Hot' : data.oilTemp > 220 ? 'Hot' : data.oilTemp > 180 ? 'Normal' : 'Cold'}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('oilTemp', data.oilTemp)}</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.fuelPressure, 'pressure')}`}>
                                         {data.fuelPressure} psi
                                     </div>
-                                    <div className="compact-label">Fuel Pressure</div>
+                                    <div className="compact-label">Fuel Pressure <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelPressure, 'pressure').color}`}>
+                                        {getRangeInfo(data.fuelPressure, 'pressure').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelPressure', data.fuelPressure)}</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.fuelTrimShort, 'fuelTrim')}`}>
                                         {data.fuelTrimShort > 0 ? '+' : ''}{data.fuelTrimShort}%
                                     </div>
-                                    <div className="compact-label">Short Fuel Trim</div>
+                                    <div className="compact-label">Short Fuel Trim <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelTrimShort, 'fuelTrim').color}`}>
+                                        {getRangeInfo(data.fuelTrimShort, 'fuelTrim').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelTrimShort', data.fuelTrimShort)}</div>
                                 </div>
                                 <div className="compact-metric">
                                     <div className={`compact-value ${getColorClass(data.fuelTrimLong, 'fuelTrim')}`}>
                                         {data.fuelTrimLong > 0 ? '+' : ''}{data.fuelTrimLong}%
                                     </div>
-                                    <div className="compact-label">Long Fuel Trim</div>
+                                    <div className="compact-label">Long Fuel Trim <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelTrimLong, 'fuelTrim').color}`}>
+                                        {getRangeInfo(data.fuelTrimLong, 'fuelTrim').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelTrimLong', data.fuelTrimLong)}</div>
                                 </div>
                             </div>
                         </div>
