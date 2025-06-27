@@ -77,7 +77,6 @@ class MyServerCallbacks: public BLEServerCallbacks {
 class SimpleOBD {
 private:
     bool realOBDAvailable = false;
-    bool simulationEnabled = false;  // Start with simulation disabled
     String lastError = "";
     unsigned long lastErrorTime = 0;
     
@@ -168,21 +167,17 @@ public:
             if (attemptRealOBDRead(pid, value)) {
                 return true;
             } else {
-                // Real OBD failed, fall back to simulation
+                // Real OBD failed
                 realOBDAvailable = false;
                 lastError = "Real OBD-II read failed for PID 0x" + String(pid, HEX);
                 lastErrorTime = millis();
-                Serial.println("OBD-II read failed, falling back to simulation");
+                Serial.println("OBD-II read failed");
             }
         }
         
-        // Only use simulated data if simulation is enabled
-        if (simulationEnabled) {
-            return readSimulatedPID(pid, value);
-        } else {
-            lastError = "No data source available for PID 0x" + String(pid, HEX);
-            return false;
-        }
+        // No data available
+        lastError = "No data source available for PID 0x" + String(pid, HEX);
+        return false;
     }
     
     // Get all available PIDs for this vehicle
@@ -220,14 +215,7 @@ public:
         return realOBDAvailable;
     }
     
-    bool isSimulationEnabled() {
-        return simulationEnabled;
-    }
     
-    void setSimulationEnabled(bool enabled) {
-        simulationEnabled = enabled;
-        Serial.println("Simulation " + String(enabled ? "enabled" : "disabled"));
-    }
     
     String runFullDiagnostics() {
         return runDiagnostics();
@@ -601,110 +589,6 @@ private:
         return false;
     }
     
-    bool readSimulatedPID(uint8_t pid, int& value) {
-        // Generate realistic simulated data for EPA-compliant vehicle
-        switch(pid) {
-            // Engine Management
-            case PID_ENGINE_LOAD: value = 25 + random(-10, 15); return true; // 15-40% load
-            case PID_COOLANT_TEMP: value = 85 + random(-5, 5); return true; // 80-90°C
-            case PID_SHORT_TERM_FUEL_TRIM_1: value = random(-8, 8); return true; // ±8%
-            case PID_LONG_TERM_FUEL_TRIM_1: value = random(-5, 5); return true; // ±5%
-            case PID_SHORT_TERM_FUEL_TRIM_2: value = random(-8, 8); return true;
-            case PID_LONG_TERM_FUEL_TRIM_2: value = random(-5, 5); return true;
-            case PID_FUEL_PRESSURE: value = 300 + random(-20, 20); return true; // ~300 kPa
-            case PID_INTAKE_MAP: value = 35 + random(-10, 15); return true; // 25-50 kPa
-            case PID_RPM: value = 1500 + random(-200, 500); return true; // 1300-2000 RPM
-            case PID_SPEED: value = 60 + random(-10, 20); return true; // 50-80 km/h
-            case PID_TIMING_ADVANCE: value = 15 + random(-5, 5); return true; // 10-20°
-            case PID_INTAKE_TEMP: value = 25 + random(-5, 15); return true; // 20-40°C
-            case PID_MAF_FLOW: value = 15 + random(-5, 10); return true; // 10-25 g/s
-            case PID_THROTTLE_POS: value = 20 + random(-5, 15); return true; // 15-35%
-            
-            // Oxygen Sensors (0.1-0.9V typical)
-            case PID_O2_S1_VOLTAGE: value = 450 + random(-100, 100); return true; // mV
-            case PID_O2_S2_VOLTAGE: value = 450 + random(-100, 100); return true;
-            case PID_O2_S3_VOLTAGE: value = 450 + random(-100, 100); return true;
-            case PID_O2_S4_VOLTAGE: value = 450 + random(-100, 100); return true;
-            
-            // System Information
-            case PID_OBD_STANDARDS: value = 7; return true; // OBD-II (CARB)
-            case PID_O2_SENSORS_PRESENT: value = 0x13; return true; // Bank 1 sensors 1&3
-            case PID_RUNTIME: value = 1800 + random(0, 600); return true; // 30-40 minutes
-            
-            // Emissions Control
-            case PID_DISTANCE_WITH_MIL: value = 0; return true; // No MIL
-            case PID_FUEL_RAIL_PRESSURE: value = 5500 + random(-200, 200); return true; // kPa
-            case PID_COMMANDED_EGR: value = 5 + random(-2, 5); return true; // 3-10%
-            case PID_EGR_ERROR: value = random(-3, 3); return true; // ±3%
-            case PID_COMMANDED_EVAP_PURGE: value = 2 + random(0, 8); return true; // 2-10%
-            case PID_FUEL_TANK_LEVEL: value = 75 + random(-10, 10); return true; // 65-85%
-            
-            // Advanced Parameters
-            case PID_WARMUPS_SINCE_CODES_CLEARED: value = 50 + random(0, 20); return true;
-            case PID_DISTANCE_SINCE_CODES_CLEARED: value = 1500 + random(0, 500); return true; // km
-            case PID_ABSOLUTE_BAROMETRIC_PRESSURE: value = 101 + random(-2, 2); return true; // kPa
-            case PID_CATALYST_TEMP_B1S1: value = 400 + random(-50, 100); return true; // °C
-            case PID_CATALYST_TEMP_B2S1: value = 400 + random(-50, 100); return true;
-            case PID_CONTROL_MODULE_VOLTAGE: value = 14 + random(-1, 1); return true; // V
-            case PID_ABSOLUTE_LOAD_VALUE: value = 30 + random(-10, 20); return true; // %
-            case PID_FUEL_AIR_COMMANDED_EQUIV_RATIO: value = 1000 + random(-50, 50); return true; // ratio*1000
-            case PID_RELATIVE_THROTTLE_POS: value = 20 + random(-5, 15); return true; // %
-            case PID_AMBIENT_AIR_TEMP: value = 22 + random(-5, 8); return true; // °C
-            case PID_ABSOLUTE_THROTTLE_POS_B: value = 20 + random(-5, 15); return true; // %
-            case PID_ACCELERATOR_PEDAL_POS_D: value = 25 + random(-5, 15); return true; // %
-            case PID_COMMANDED_THROTTLE_ACTUATOR: value = 20 + random(-5, 15); return true; // %
-            case PID_TIME_WITH_MIL_ON: value = 0; return true; // No MIL time
-            case PID_TIME_SINCE_CODES_CLEARED: value = 720 + random(0, 240); return true; // minutes
-            
-            // Fuel System
-            case PID_FUEL_TYPE: value = 1; return true; // Gasoline
-            case PID_ETHANOL_FUEL_PERCENT: value = 10 + random(-2, 5); return true; // E10 fuel
-            case PID_ENGINE_OIL_TEMP: value = 90 + random(-5, 10); return true; // °C
-            case PID_FUEL_INJECTION_TIMING: value = -2 + random(-2, 4); return true; // degrees
-            case PID_ENGINE_FUEL_RATE: value = 8 + random(-2, 4); return true; // L/h
-            
-            // Additional Advanced Parameters
-            case PID_FUEL_RAIL_GAUGE_PRESSURE: value = 5800 + random(-300, 300); return true; // kPa
-            case PID_ABSOLUTE_EVAP_SYS_VAPOR_PRESSURE: value = 2500 + random(-100, 100); return true; // Pa
-            case PID_EVAP_SYS_VAPOR_PRESSURE2: value = 2500 + random(-100, 100); return true; // Pa
-            case PID_SHORT_TERM_SECONDARY_O2_TRIM_1: value = random(-5, 5); return true; // %
-            case PID_LONG_TERM_SECONDARY_O2_TRIM_1: value = random(-3, 3); return true; // %
-            case PID_SHORT_TERM_SECONDARY_O2_TRIM_2: value = random(-5, 5); return true; // %
-            case PID_LONG_TERM_SECONDARY_O2_TRIM_2: value = random(-3, 3); return true; // %
-            case PID_FUEL_RAIL_ABSOLUTE_PRESSURE: value = 5500 + random(-200, 200); return true; // kPa
-            case PID_RELATIVE_ACCELERATOR_PEDAL_POS: value = 25 + random(-5, 15); return true; // %
-            case PID_HYBRID_BATTERY_REMAINING: value = 85 + random(-10, 10); return true; // %
-            case PID_MAX_VALUES_EQUIV_RATIO: value = 1200 + random(-50, 50); return true; // ratio*1000
-            case PID_MAX_VALUES_AIR_FLOW_MAF: value = 25 + random(-5, 10); return true; // g/s
-            case PID_EMISSION_REQUIREMENTS: value = 1; return true; // OBD-II
-            
-            // Turbo & Boost Control (for turbocharged vehicles)
-            case PID_TURBOCHARGER_COMPRESSOR_INLET_PRESSURE: value = 101 + random(-2, 15); return true; // kPa
-            case PID_BOOST_PRESSURE_CONTROL: value = 0 + random(0, 50); return true; // kPa
-            case PID_VARIABLE_GEOMETRY_TURBO_CONTROL: value = 50 + random(-20, 20); return true; // %
-            case PID_WASTEGATE_CONTROL: value = 10 + random(-5, 15); return true; // %
-            case PID_EXHAUST_PRESSURE: value = 105 + random(-5, 10); return true; // kPa
-            case PID_TURBOCHARGER_RPM: value = 0; return true; // RPM (0 for non-turbo)
-            case PID_TURBOCHARGER_TEMP_1: value = 0; return true; // °C (0 for non-turbo)
-            case PID_TURBOCHARGER_TEMP_2: value = 0; return true; // °C (0 for non-turbo)
-            case PID_CHARGE_AIR_COOLER_TEMP: value = 30 + random(-5, 15); return true; // °C
-            case PID_EXHAUST_GAS_TEMP_BANK_1: value = 450 + random(-50, 100); return true; // °C
-            case PID_EXHAUST_GAS_TEMP_BANK_2: value = 450 + random(-50, 100); return true; // °C
-            
-            // Diesel Particulate Filter (for diesel vehicles - return 0 for gasoline)
-            case PID_DIESEL_PARTICULATE_FILTER_1: value = 0; return true; // Not applicable
-            case PID_DIESEL_PARTICULATE_FILTER_2: value = 0; return true; // Not applicable
-            case PID_DIESEL_PARTICULATE_FILTER_TEMP: value = 0; return true; // Not applicable
-            case PID_NOX_NTE_CONTROL_AREA_STATUS: value = 0; return true; // Not applicable
-            case PID_PM_NTE_CONTROL_AREA_STATUS: value = 0; return true; // Not applicable
-            case PID_ENGINE_RUN_TIME: value = 1800 + random(0, 600); return true; // seconds
-            
-            default: 
-                lastError = "Unsupported simulated PID 0x" + String(pid, HEX);
-                lastErrorTime = millis();
-                return false;
-        }
-    }
 };
 
 // Minimal GPS simulation with averaging
@@ -774,9 +658,6 @@ private:
     int statusHistoryCount = 0;
     
 public:
-    void setSimulationEnabled(bool enabled) {
-        obd.setSimulationEnabled(enabled);
-    }
     
     void startDiagnosticMode() {
         diagnosticMode = true;
@@ -1077,10 +958,8 @@ private:
         // Add data source indicator
         if (obd.isUsingRealData()) {
             data += "MODE:REAL;";
-        } else if (obd.isSimulationEnabled()) {
-            data += "MODE:SIMULATED;";
         } else {
-            data += "MODE:DISABLED;"; // No OBD or simulation data
+            data += "MODE:DISABLED;"; // No OBD data
         }
         
         int value;
@@ -1126,7 +1005,7 @@ private:
     void recordStatusReading() {
         StatusReading& reading = statusHistory[statusHistoryIndex];
         reading.obdReal = obd.isUsingRealData();
-        reading.obdSim = obd.isSimulationEnabled();
+        reading.obdSim = false;
         reading.gpsReady = (m_state & STATE_GPS_READY) != 0;
         reading.storageReady = (m_state & STATE_STORAGE_READY) != 0;
         reading.bleReady = (m_state & STATE_BLE_READY) != 0;
@@ -1140,28 +1019,19 @@ private:
     
     String getAveragedOBDStatus() {
         if (statusHistoryCount == 0) {
-            return obd.isUsingRealData() ? "REAL" : (obd.isSimulationEnabled() ? "SIM" : "OFF");
+            return obd.isUsingRealData() ? "REAL" : "OFF";
         }
         
-        int realCount = 0, simCount = 0, offCount = 0;
+        int realCount = 0, offCount = 0;
         for (int i = 0; i < statusHistoryCount; i++) {
             if (statusHistory[i].obdReal) {
                 realCount++;
-            } else if (statusHistory[i].obdSim) {
-                simCount++;
             } else {
                 offCount++;
             }
         }
         
-        String result;
-        if (realCount >= simCount && realCount >= offCount) {
-            result = "REAL";
-        } else if (simCount >= offCount) {
-            result = "SIM";
-        } else {
-            result = "OFF";
-        }
+        String result = (realCount > offCount) ? "REAL" : "OFF";
         
         if (statusHistoryCount < STATUS_HISTORY_SIZE) {
             result += "(" + String(statusHistoryCount) + "/10)";
@@ -1247,27 +1117,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
             if (value.startsWith("CMD:")) {
                 String command = value.substring(4); // Remove "CMD:" prefix
                 
-                if (command == "SIM_ON" && logger) {
-                    logger->setSimulationEnabled(true);
-                    Serial.println("Simulation enabled via BLE command");
-                    
-                    // Send immediate confirmation
-                    if (pCharacteristic) {
-                        String response = String(millis()) + ",STATUS:SIM_ENABLED;";
-                        pCharacteristic->setValue(response.c_str());
-                        pCharacteristic->notify();
-                    }
-                } else if (command == "SIM_OFF" && logger) {
-                    logger->setSimulationEnabled(false);
-                    Serial.println("Simulation disabled via BLE command");
-                    
-                    // Send immediate confirmation
-                    if (pCharacteristic) {
-                        String response = String(millis()) + ",STATUS:SIM_DISABLED;";
-                        pCharacteristic->setValue(response.c_str());
-                        pCharacteristic->notify();
-                    }
-                } else if (command == "STATUS" && logger) {
+                if (command == "STATUS" && logger) {
                     Serial.println("Status request received via BLE");
                     // Status will be sent in next sendBLEData() cycle
                 } else if (command == "PING") {
@@ -1289,15 +1139,6 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                         pCharacteristic->setValue(response.c_str());
                         pCharacteristic->notify();
                     }
-                }
-            } else {
-                // Handle legacy commands without CMD: prefix for backward compatibility
-                if (value == "SIM_ON" && logger) {
-                    logger->setSimulationEnabled(true);
-                    Serial.println("Simulation enabled via BLE command (legacy)");
-                } else if (value == "SIM_OFF" && logger) {
-                    logger->setSimulationEnabled(false);
-                    Serial.println("Simulation disabled via BLE command (legacy)");
                 }
             }
         }

@@ -428,6 +428,13 @@
                 turboRpm: 0
             });
             
+            // Client-side simulation state
+            const [clientSimulation, setClientSimulation] = useState({
+                enabled: false,
+                startTime: null,
+                interval: null
+            });
+            
             const [diagnosticResults, setDiagnosticResults] = useState('');
             const [diagnosticRunning, setDiagnosticRunning] = useState(false);
             
@@ -1201,7 +1208,7 @@
                                         break;
                                     case 'MODE':
                                         dataUpdates.dataMode = value;
-                                        dataUpdates.simulationRunning = (value === 'SIMULATED');
+                                        // Don't update simulationRunning from device - it's client-side now
                                         break;
                                     case 'ERROR':
                                         dataUpdates.lastError = value;
@@ -1334,12 +1341,93 @@
                 }
             };
 
-            // Function to toggle simulation
+            // Client-side simulation functions
+            const generateSimulatedData = () => {
+                const now = Date.now();
+                const elapsed = clientSimulation.startTime ? (now - clientSimulation.startTime) / 1000 : 0;
+                
+                // Generate realistic simulated data
+                const baseRpm = 1500 + Math.sin(elapsed * 0.1) * 300;
+                const baseSpeed = 60 + Math.sin(elapsed * 0.05) * 15;
+                
+                return {
+                    rpm: Math.round(baseRpm + (Math.random() - 0.5) * 200),
+                    speed: Math.round(baseSpeed + (Math.random() - 0.5) * 10),
+                    coolant: Math.round(185 + (Math.random() - 0.5) * 10), // °F
+                    engineLoad: Math.round(25 + Math.sin(elapsed * 0.08) * 15 + (Math.random() - 0.5) * 10),
+                    throttlePos: Math.round(20 + Math.sin(elapsed * 0.12) * 10 + (Math.random() - 0.5) * 8),
+                    fuelLevel: Math.round(75 + (Math.random() - 0.5) * 5),
+                    batteryVoltage: 14.2 + (Math.random() - 0.5) * 0.4,
+                    ambientTemp: Math.round(72 + (Math.random() - 0.5) * 10), // °F
+                    enginePressure: Math.round(35 + (Math.random() - 0.5) * 8),
+                    intakeTemp: Math.round(95 + (Math.random() - 0.5) * 15), // °F
+                    oilTemp: Math.round(210 + (Math.random() - 0.5) * 20), // °F
+                    exhaustTemp: Math.round(800 + (Math.random() - 0.5) * 100), // °F
+                    fuelPressure: Math.round(45 + (Math.random() - 0.5) * 8),
+                    fuelTrimShort: Math.round((Math.random() - 0.5) * 10),
+                    fuelTrimLong: Math.round((Math.random() - 0.5) * 6),
+                    fuelRate: (8 + (Math.random() - 0.5) * 3).toFixed(1),
+                    mafFlow: (15 + Math.sin(elapsed * 0.1) * 5 + (Math.random() - 0.5) * 2).toFixed(1),
+                    o2Voltage: (0.45 + (Math.random() - 0.5) * 0.2).toFixed(3),
+                    catalystTemp: Math.round(750 + (Math.random() - 0.5) * 100), // °F
+                    boostPressure: Math.round((Math.random()) * 5), // Low boost for NA engine
+                    turboRpm: 0, // No turbo
+                    gps: {
+                        lat: 37.7749 + (Math.random() - 0.5) * 0.01,
+                        lng: -122.4194 + (Math.random() - 0.5) * 0.01,
+                        satellites: 7 + Math.round((Math.random() - 0.5) * 4)
+                    },
+                    timestamp: now,
+                    dataMode: 'SIMULATED'
+                };
+            };
+
+            // Function to toggle client-side simulation
             const toggleSimulation = () => {
-                if (data.simulationRunning) {
-                    sendCommand('SIM_OFF');
+                if (clientSimulation.enabled) {
+                    // Stop simulation
+                    if (clientSimulation.interval) {
+                        clearInterval(clientSimulation.interval);
+                    }
+                    setClientSimulation({
+                        enabled: false,
+                        startTime: null,
+                        interval: null
+                    });
+                    setData(prev => ({
+                        ...prev,
+                        simulationRunning: false,
+                        dataMode: 'DISABLED'
+                    }));
                 } else {
-                    sendCommand('SIM_ON');
+                    // Start simulation
+                    const startTime = Date.now();
+                    const interval = setInterval(() => {
+                        const simData = generateSimulatedData();
+                        setData(prev => ({
+                            ...prev,
+                            ...simData,
+                            simulationRunning: true
+                        }));
+                        
+                        // Add to history for charting
+                        setDataHistory(prev => [...prev, {
+                            timestamp: Date.now(),
+                            ...simData
+                        }].slice(-100));
+                    }, 1000);
+                    
+                    setClientSimulation({
+                        enabled: true,
+                        startTime: startTime,
+                        interval: interval
+                    });
+                    
+                    setData(prev => ({
+                        ...prev,
+                        simulationRunning: true,
+                        dataMode: 'SIMULATED'
+                    }));
                 }
             };
 
@@ -1447,12 +1535,11 @@
                                 </button>
                             </div>
                             <button 
-                                className={`sim-control-btn ${data.simulationRunning ? 'stop' : ''}`}
+                                className={`sim-control-btn ${(data.simulationRunning || clientSimulation.enabled) ? 'stop' : ''}`}
                                 onClick={toggleSimulation}
-                                disabled={!isConnected}
-                                title={data.simulationRunning ? 'Stop simulated data' : 'Start simulated data'}
+                                title={(data.simulationRunning || clientSimulation.enabled) ? 'Stop client simulation' : 'Start client simulation'}
                             >
-                                {data.simulationRunning ? '⏹ Stop Simulation' : '▶ Start Simulation'}
+                                {(data.simulationRunning || clientSimulation.enabled) ? '⏹ Stop Simulation' : '▶ Start Simulation'}
                             </button>
                             <button 
                                 style={{marginLeft: '10px', padding: '8px 16px', fontSize: '14px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: isConnected ? 'pointer' : 'not-allowed'}}
@@ -1498,14 +1585,14 @@
                                 <strong>Last Error:</strong> {data.lastError}
                             </div>
                         )}
-                        {data.dataMode === 'DISABLED' && (
+                        {data.dataMode === 'DISABLED' && !clientSimulation.enabled && (
                             <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#e2e3e5', color: '#6c757d', borderRadius: '4px'}}>
                                 <strong>Info:</strong> Data collection is disabled. Click "Start Simulation" to begin receiving test data, or connect to a vehicle's OBD-II port for real data.
                             </div>
                         )}
-                        {data.dataMode === 'SIMULATED' && (
+                        {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) && (
                             <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px'}}>
-                                <strong>Simulation Mode:</strong> Displaying realistic test data for 80+ EPA-compliant PIDs. All engine, fuel, emissions, and diagnostic parameters are simulated.
+                                <strong>Client Simulation Mode:</strong> Displaying realistic test data generated in the browser. All engine, fuel, emissions, and diagnostic parameters are simulated locally.
                             </div>
                         )}
                         {data.dataMode === 'REAL' && (
@@ -1515,10 +1602,10 @@
                         )}
                         <div style={{marginTop: '10px', fontSize: '0.9em', color: '#6c757d'}}>
                             <strong>Data Sources:</strong><br/>
-                            • <strong>REAL:</strong> Live vehicle OBD-II data (80+ PIDs from ECU)<br/>
-                            • <strong>SIMULATED:</strong> EPA-compliant test data for development<br/>
+                            • <strong>REAL:</strong> Live vehicle OBD-II data from device<br/>
+                            • <strong>SIMULATED:</strong> Client-side test data generated in browser<br/>
                             • <strong>DISABLED:</strong> No data collection (hardware sensors only)<br/>
-                            <strong>Controls:</strong> Use buttons to toggle simulation or refresh system status.
+                            <strong>Controls:</strong> Use buttons to toggle client simulation or refresh device status.
                         </div>
                     </div>
 
@@ -1526,13 +1613,13 @@
                         <div className="metric-card">
                             <div className="metric-label">Engine RPM</div>
                             <div className={`metric-value ${getColorClass(data.rpm, 'rpm')}`}>{data.rpm.toLocaleString()}</div>
-                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
-                            {data.dataMode === 'DISABLED' && <small style={{color: '#6c757d'}}>No Data</small>}
+                            {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            {data.dataMode === 'DISABLED' && !clientSimulation.enabled && <small style={{color: '#6c757d'}}>No Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Speed</div>
                             <div className={`metric-value ${getColorClass(data.speed, 'speed')}`}>{data.speed} <small>mph</small></div>
-                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) && <small style={{color: '#856404'}}>Simulated Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Coolant Temp</div>
