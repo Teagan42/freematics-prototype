@@ -260,39 +260,63 @@ Key settings in `config.h`:
 
 **When adding new features, always check existing patterns and implement similar custom solutions rather than assuming modern ESP32 APIs are available.**
 
-## ⚠️ CRITICAL: Flash Memory Size Constraints
+## ⚠️ CRITICAL: Flash Memory Size Constraints - UNRESOLVED
 
-**The sketch is currently 128% of available flash space (1.69MB vs 1.31MB limit) and WILL NOT COMPILE.**
+**The sketch is STILL 128% of available flash space (1.68MB vs 1.31MB limit) and WILL NOT COMPILE.**
 
-### Current Size Issues:
-- **Sketch Size**: 1,685,458 bytes (128% of 1,310,720 byte limit)
+### Current Status (After Size Reduction Attempts):
+- **Sketch Size**: 1,681,902 bytes (128% of 1,310,720 byte limit) - NO IMPROVEMENT
 - **Memory Usage**: 62,564 bytes (19% of dynamic memory) - this is OK
-- **Problem**: Text section (code) exceeds available space
+- **Problem**: Text section (code) still exceeds available space by ~370KB
 
-### Size Reduction Strategies Applied:
-1. **Reduced Diagnostic Strings**: Shortened verbose diagnostic output messages
-2. **Limited PID Collection**: Reduced from 80+ PIDs to ~15 essential PIDs
-3. **Simplified BLE Protocol**: Shortened field names and removed redundant data
-4. **Optimized String Usage**: Reduced long status messages and error strings
+### Size Reduction Strategies ALREADY APPLIED:
+1. ✅ **Removed WiFi Library**: Eliminated `#include <WiFi.h>` and `#include <Wire.h>`
+2. ✅ **Removed Diagnostic Mode**: Eliminated comprehensive hardware diagnostics
+3. ✅ **Reduced PID Support**: Cut from 80+ PIDs to 6 core engine PIDs only
+4. ✅ **Simplified BLE Protocol**: Shortened field names (RPM, SPD, TEMP, etc.)
+5. ✅ **Removed Status History**: Eliminated averaging arrays and complex status tracking
+6. ✅ **Simplified OBD Parsing**: Reduced parseOBDResponse from 80+ cases to 8 cases
+7. ✅ **Removed Hardware Abstractions**: Eliminated complex sensor reading functions
 
-### Further Size Reduction Options:
-1. **Remove WiFi Library**: Currently included but unused - saves ~200KB
-2. **Simplify Diagnostic Mode**: Remove comprehensive hardware diagnostics
-3. **Reduce PID Support**: Keep only core engine PIDs (RPM, speed, coolant)
-4. **Remove Chart.js Dashboard**: Use simpler HTML-only dashboard
-5. **Partition Scheme**: Change to "Minimal SPIFFS" or "No OTA" partition
+### CRITICAL ISSUE: Size Reduction Had NO EFFECT
+The sketch size remained exactly the same (1,681,902 bytes) despite removing significant code. This suggests:
 
-### Emergency Compilation Fixes:
-- Remove `#include <WiFi.h>` if not using WiFi features
-- Remove diagnostic mode entirely if needed
-- Use `String` sparingly, prefer `char[]` arrays
-- Remove unused PID definitions from config.h
-- Simplify BLE message formatting
+1. **Compiler Optimization**: Dead code elimination may already be removing unused functions
+2. **Library Dependencies**: BLE and core ESP32 libraries are consuming most space
+3. **String Literals**: Remaining strings and constants are still too large
+4. **Template Instantiation**: C++ templates in BLE library may be expanding significantly
 
-### Partition Scheme Options:
-- **Default**: 1.2MB app / 1.5MB SPIFFS
-- **Minimal SPIFFS**: 1.9MB app / 190KB SPIFFS  
-- **No OTA**: 2MB app / 2MB SPIFFS
-- **Huge APP**: 3MB app / 1MB SPIFFS
+### EMERGENCY WORKAROUNDS REQUIRED:
 
-**IMMEDIATE ACTION REQUIRED: The sketch must be reduced in size before it can be deployed to hardware.**
+#### Option 1: Change Partition Scheme (RECOMMENDED)
+```bash
+# In Arduino IDE: Tools > Partition Scheme > "Huge APP (3MB No OTA/1MB SPIFFS)"
+# Or modify boards.txt to use larger app partition
+```
+
+#### Option 2: Minimal Sketch Approach
+Create a completely new minimal sketch with:
+- Basic BLE only (no OBD simulation)
+- Hard-coded test data instead of dynamic generation
+- No GPS simulation
+- No storage system
+- Minimal string usage
+
+#### Option 3: Use Different Board Definition
+```bash
+# Try ESP32 Dev Module with different partition scheme
+# Or use ESP32-S3 with more flash memory
+```
+
+### Immediate Actions Required:
+1. **STOP trying to reduce code size** - it's not working
+2. **Change partition scheme** to "Huge APP" or "No OTA"
+3. **Consider hardware upgrade** to ESP32-S3 with more flash
+4. **Test with minimal sketch** to verify BLE functionality first
+
+### Compilation Command with Partition Override:
+```bash
+arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=huge_app freematics_custom.ino
+```
+
+**STATUS: BLOCKED - Cannot deploy until partition scheme is changed or hardware is upgraded.**
