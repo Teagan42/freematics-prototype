@@ -152,7 +152,7 @@
             });
             const [dataHistory, setDataHistory] = useState([]);
             const [rawDataLog, setRawDataLog] = useState([]);
-            
+
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
 
@@ -231,18 +231,18 @@
                 if (chartInstance.current && dataHistory.length > 0) {
                     const chart = chartInstance.current;
                     const startTime = dataHistory[0].timestamp;
-                    
+
                     chart.data.labels = dataHistory.map(d => ((d.timestamp - startTime) / 1000).toFixed(1));
                     chart.data.datasets[0].data = dataHistory.map(d => d.rpm);
                     chart.data.datasets[1].data = dataHistory.map(d => d.speed);
-                    
+
                     // Keep only last 50 data points for performance
                     if (chart.data.labels.length > 50) {
                         chart.data.labels = chart.data.labels.slice(-50);
                         chart.data.datasets[0].data = chart.data.datasets[0].data.slice(-50);
                         chart.data.datasets[1].data = chart.data.datasets[1].data.slice(-50);
                     }
-                    
+
                     chart.update('none');
                 }
             }, [dataHistory]);
@@ -250,7 +250,7 @@
             const connectToDevice = async () => {
                 try {
                     setError(null);
-                    
+
                     if (!navigator.bluetooth) {
                         throw new Error('Web Bluetooth is not supported in this browser. Please use Chrome/Edge with HTTPS.');
                     }
@@ -275,24 +275,33 @@
                     });
 
                     console.log('Connecting to GATT server...');
-                    const server = await device.gatt.connect();
-                    
+                    const server = await device.gatt.connect().catch(err => {
+                        console.error(err);
+                        setError(`Connection failed: ${err.message}`);
+                        return;
+                        //if (err.name === 'NotFoundError') {
+                        //    throw new Error('No Freematics device found. Make sure the device is powered on and in range.');
+                        //}
+                        //throw err;
+                    });
+
+
                     console.log('Getting service...');
                     const service = await server.getPrimaryService('12345678-1234-1234-1234-123456789abc');
-                    
+
                     console.log('Getting characteristic...');
                     const characteristic = await service.getCharacteristic('12345678-1234-1234-1234-123456789abc');
-                    
+
                     // Start notifications
                     await characteristic.startNotifications();
                     characteristic.addEventListener('characteristicvaluechanged', handleDataReceived);
-                    
+
                     setDevice(device);
                     setCharacteristic(characteristic);
                     setIsConnected(true);
-                    
+
                     device.addEventListener('gattserverdisconnected', handleDisconnection);
-                    
+
                 } catch (err) {
                     console.error('Connection failed:', err);
                     setError(`Connection failed: ${err.message}`);
@@ -303,31 +312,31 @@
                 const value = event.target.value;
                 const decoder = new TextDecoder();
                 const rawData = decoder.decode(value);
-                
+
                 console.log('Received data:', rawData);
-                
+
                 // Add to raw data log
                 setRawDataLog(prev => [...prev.slice(-20), {
                     timestamp: new Date().toLocaleTimeString(),
                     data: rawData
                 }]);
-                
+
                 // Parse the data format: timestamp,RPM:value;SPD:value;GPS:lat,lng;
                 try {
                     const parts = rawData.split(',');
                     if (parts.length >= 2) {
                         const timestamp = parseInt(parts[0]);
                         const dataString = parts.slice(1).join(',');
-                        
+
                         const newData = { ...data, timestamp };
-                        
+
                         // Parse key-value pairs
                         const pairs = dataString.split(';').filter(p => p.length > 0);
-                        
+
                         pairs.forEach(pair => {
                             if (pair.includes(':')) {
                                 const [key, value] = pair.split(':');
-                                
+
                                 switch (key) {
                                     case 'RPM':
                                         newData.rpm = parseInt(value) || 0;
@@ -351,9 +360,9 @@
                                 }
                             }
                         });
-                        
+
                         setData(newData);
-                        
+
                         // Add to history for charting
                         setDataHistory(prev => [...prev, {
                             timestamp: Date.now(),
@@ -387,8 +396,8 @@
                         <div className="status">
                             <div className={`status-indicator ${isConnected ? 'connected' : ''}`}></div>
                             <span>{isConnected ? 'Connected' : 'Disconnected'}</span>
-                            <button 
-                                className="connect-btn" 
+                            <button
+                                className="connect-btn"
                                 onClick={isConnected ? disconnect : connectToDevice}
                                 disabled={!navigator.bluetooth}
                             >
