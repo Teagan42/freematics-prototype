@@ -259,3 +259,40 @@ Key settings in `config.h`:
 - **Storage**: Custom circular buffer, not SPIFFS/LittleFS
 
 **When adding new features, always check existing patterns and implement similar custom solutions rather than assuming modern ESP32 APIs are available.**
+
+## ⚠️ CRITICAL: Flash Memory Size Constraints
+
+**The sketch is currently 128% of available flash space (1.69MB vs 1.31MB limit) and WILL NOT COMPILE.**
+
+### Current Size Issues:
+- **Sketch Size**: 1,685,458 bytes (128% of 1,310,720 byte limit)
+- **Memory Usage**: 62,564 bytes (19% of dynamic memory) - this is OK
+- **Problem**: Text section (code) exceeds available space
+
+### Size Reduction Strategies Applied:
+1. **Reduced Diagnostic Strings**: Shortened verbose diagnostic output messages
+2. **Limited PID Collection**: Reduced from 80+ PIDs to ~15 essential PIDs
+3. **Simplified BLE Protocol**: Shortened field names and removed redundant data
+4. **Optimized String Usage**: Reduced long status messages and error strings
+
+### Further Size Reduction Options:
+1. **Remove WiFi Library**: Currently included but unused - saves ~200KB
+2. **Simplify Diagnostic Mode**: Remove comprehensive hardware diagnostics
+3. **Reduce PID Support**: Keep only core engine PIDs (RPM, speed, coolant)
+4. **Remove Chart.js Dashboard**: Use simpler HTML-only dashboard
+5. **Partition Scheme**: Change to "Minimal SPIFFS" or "No OTA" partition
+
+### Emergency Compilation Fixes:
+- Remove `#include <WiFi.h>` if not using WiFi features
+- Remove diagnostic mode entirely if needed
+- Use `String` sparingly, prefer `char[]` arrays
+- Remove unused PID definitions from config.h
+- Simplify BLE message formatting
+
+### Partition Scheme Options:
+- **Default**: 1.2MB app / 1.5MB SPIFFS
+- **Minimal SPIFFS**: 1.9MB app / 190KB SPIFFS  
+- **No OTA**: 2MB app / 2MB SPIFFS
+- **Huge APP**: 3MB app / 1MB SPIFFS
+
+**IMMEDIATE ACTION REQUIRED: The sketch must be reduced in size before it can be deployed to hardware.**
