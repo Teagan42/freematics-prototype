@@ -20,6 +20,9 @@
 #define STATE_CONNECTED 0x40
 #define STATE_BLE_READY 0x80
 
+// API Version for UI compatibility
+#define API_VERSION 1
+
 // Forward declarations
 class CustomFreematicsLogger;
 class MyCharacteristicCallbacks;
@@ -42,9 +45,9 @@ class MyServerCallbacks: public BLEServerCallbacks {
         Serial.println("Client MAC: " + String(pServer->getConnId()));
         Serial.println("Starting data collection...");
         
-        // Send immediate connection confirmation
+        // Send immediate connection confirmation with API version
         if (pCharacteristic) {
-            String connectMsg = "0:" + String(millis()) + ",CONNECT:SUCCESS;";
+            String connectMsg = "0:" + String(millis()) + ",CONNECT:SUCCESS,API_VERSION:" + String(API_VERSION) + ";";
             pCharacteristic->setValue(connectMsg.c_str());
             pCharacteristic->notify();
             Serial.println("BLE TX CONNECT: " + connectMsg);
@@ -520,6 +523,7 @@ private:
                 statusData += "GPS=" + gpsStatus + ",";
                 statusData += "STORAGE=" + storageStatus + ",";
                 statusData += "BLE=" + bleStatus + ",";
+                statusData += "API_VERSION=" + String(API_VERSION) + ",";
                 statusData += "UPTIME=" + String(millis() / 1000) + ";";
                 
                 Serial.println("BLE TX STATUS: " + statusData);

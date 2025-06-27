@@ -333,6 +333,7 @@
             const [device, setDevice] = useState(null);
             const [characteristic, setCharacteristic] = useState(null);
             const [error, setError] = useState(null);
+            const [apiVersionError, setApiVersionError] = useState(null);
             const [data, setData] = useState({
                 rpm: 0,
                 speed: 0,
@@ -345,8 +346,12 @@
                 dataMode: 'DISABLED',
                 lastError: '',
                 systemStatus: {},
-                simulationRunning: false
+                simulationRunning: false,
+                apiVersion: null
             });
+            
+            // Expected API version - update this when making breaking changes
+            const EXPECTED_API_VERSION = 1;
             const [dataHistory, setDataHistory] = useState([]);
             const [rawDataLog, setRawDataLog] = useState([]);
 
@@ -632,6 +637,31 @@
                 }
             };
 
+            const validateApiVersion = (receivedVersion) => {
+                if (receivedVersion === null || receivedVersion === undefined) {
+                    setApiVersionError({
+                        type: 'missing',
+                        message: 'Device firmware does not report API version. Please update the firmware.'
+                    });
+                    return false;
+                } else if (receivedVersion > EXPECTED_API_VERSION) {
+                    setApiVersionError({
+                        type: 'newer',
+                        message: `Device firmware API version (${receivedVersion}) is newer than dashboard expects (${EXPECTED_API_VERSION}). Please update the dashboard.`
+                    });
+                    return false;
+                } else if (receivedVersion < EXPECTED_API_VERSION) {
+                    setApiVersionError({
+                        type: 'older',
+                        message: `Device firmware API version (${receivedVersion}) is older than dashboard expects (${EXPECTED_API_VERSION}). Please deploy updated firmware.`
+                    });
+                    return false;
+                } else {
+                    setApiVersionError(null);
+                    return true;
+                }
+            };
+
             const handleDataReceived = (event) => {
                 const value = event.target.value;
                 const decoder = new TextDecoder();
@@ -760,6 +790,22 @@
                                         // Only update if status actually changed to prevent flashing
                                         if (JSON.stringify(newData.systemStatus) !== JSON.stringify(statusObj)) {
                                             newData.systemStatus = statusObj;
+                                        }
+                                        break;
+                                    case 'API_VERSION':
+                                        const apiVersion = parseInt(value);
+                                        newData.apiVersion = apiVersion;
+                                        validateApiVersion(apiVersion);
+                                        break;
+                                    case 'CONNECT':
+                                        // Handle connection messages that may include API_VERSION
+                                        if (value.includes('API_VERSION:')) {
+                                            const versionMatch = value.match(/API_VERSION:(\d+)/);
+                                            if (versionMatch) {
+                                                const apiVersion = parseInt(versionMatch[1]);
+                                                newData.apiVersion = apiVersion;
+                                                validateApiVersion(apiVersion);
+                                            }
                                         }
                                         break;
                                 }
@@ -1061,6 +1107,7 @@
                         <div style={{marginTop: '10px', fontSize: '0.9em', color: '#6c757d'}}>
                             Total messages: {rawDataLog.length} | 
                             Connected: {isConnected ? 'Yes' : 'No'} |
+                            API Version: {data.apiVersion !== null ? data.apiVersion : 'Unknown'} |
                             Last update: {rawDataLog.length > 0 ? rawDataLog[rawDataLog.length - 1].timestamp : 'Never'}
                         </div>
                     </div>
