@@ -197,8 +197,33 @@
         }
         .status-item.real { background: #d4edda; color: #155724; }
         .status-item.simulated { background: #fff3cd; color: #856404; }
+        .status-item.disabled { background: #e2e3e5; color: #6c757d; }
         .status-item.ok { background: #d4edda; color: #155724; }
         .status-item.fail { background: #f8d7da; color: #721c24; }
+        .status-item.off { background: #e2e3e5; color: #6c757d; }
+        .sim-control-btn {
+            background: #17a2b8;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        .sim-control-btn:hover {
+            background: #138496;
+        }
+        .sim-control-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .sim-control-btn.stop {
+            background: #dc3545;
+        }
+        .sim-control-btn.stop:hover {
+            background: #c82333;
+        }
         .error-message {
             background: #f8d7da;
             color: #721c24;
@@ -230,7 +255,8 @@
                 timestamp: 0,
                 dataMode: 'UNKNOWN',
                 lastError: '',
-                systemStatus: {}
+                systemStatus: {},
+                simulationRunning: false
             });
             const [dataHistory, setDataHistory] = useState([]);
             const [rawDataLog, setRawDataLog] = useState([]);
@@ -613,6 +639,7 @@
                                         break;
                                     case 'MODE':
                                         newData.dataMode = value;
+                                        newData.simulationRunning = (value === 'SIMULATED');
                                         break;
                                     case 'ERROR':
                                         newData.lastError = value;
@@ -683,6 +710,17 @@
                         data: 'TX: ' + message,
                         type: 'tx'
                     }]);
+                }
+            };
+
+            // Function to toggle simulation
+            const toggleSimulation = () => {
+                if (data.simulationRunning) {
+                    sendCommand('STOP_SIM');
+                    setData(prev => ({ ...prev, simulationRunning: false }));
+                } else {
+                    sendCommand('START_SIM');
+                    setData(prev => ({ ...prev, simulationRunning: true }));
                 }
             };
 
@@ -767,7 +805,16 @@
                     )}
 
                     <div className="status-panel">
-                        <h3>System Status</h3>
+                        <h3>System Status
+                            <button 
+                                className={`sim-control-btn ${data.simulationRunning ? 'stop' : ''}`}
+                                onClick={toggleSimulation}
+                                disabled={!isConnected}
+                                title={data.simulationRunning ? 'Stop simulated data' : 'Start simulated data'}
+                            >
+                                {data.simulationRunning ? '⏹ Stop Simulation' : '▶ Start Simulation'}
+                            </button>
+                        </h3>
                         <div>
                             <span className={`status-item ${data.dataMode.toLowerCase()}`}>
                                 Data: {data.dataMode}
@@ -783,6 +830,11 @@
                                 <strong>Last Error:</strong> {data.lastError}
                             </div>
                         )}
+                        {data.dataMode === 'DISABLED' && (
+                            <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#e2e3e5', color: '#6c757d', borderRadius: '4px'}}>
+                                <strong>Info:</strong> Simulated data is disabled. Click "Start Simulation" to begin receiving test data.
+                            </div>
+                        )}
                     </div>
 
                     <div className="metrics-grid">
@@ -790,6 +842,7 @@
                             <div className="metric-label">Engine RPM</div>
                             <div className={`metric-value ${getColorClass(data.rpm, 'rpm')}`}>{data.rpm.toLocaleString()}</div>
                             {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            {data.dataMode === 'DISABLED' && <small style={{color: '#6c757d'}}>No Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Speed</div>

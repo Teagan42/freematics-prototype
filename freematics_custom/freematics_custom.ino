@@ -75,6 +75,16 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                     String pong = String(millis()) + ",PONG:OK;";
                     pCharacteristic->setValue(pong.c_str());
                     pCharacteristic->notify();
+                } else if (cmd == "START_SIM") {
+                    Serial.println("Received START_SIM command from client");
+                    // Access the global OBD instance through the logger
+                    extern CustomFreematicsLogger logger;
+                    logger.setSimulationEnabled(true);
+                } else if (cmd == "STOP_SIM") {
+                    Serial.println("Received STOP_SIM command from client");
+                    // Access the global OBD instance through the logger
+                    extern CustomFreematicsLogger logger;
+                    logger.setSimulationEnabled(false);
                 }
             }
         }
@@ -85,6 +95,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
 class SimpleOBD {
 private:
     bool realOBDAvailable = false;
+    bool simulationEnabled = false;  // Start with simulation disabled
     String lastError = "";
     unsigned long lastErrorTime = 0;
     
@@ -126,12 +137,26 @@ public:
             }
         }
         
-        // Use simulated data
-        return readSimulatedPID(pid, value);
+        // Only use simulated data if simulation is enabled
+        if (simulationEnabled) {
+            return readSimulatedPID(pid, value);
+        } else {
+            lastError = "Simulation disabled - no data available";
+            return false;
+        }
     }
     
     bool isUsingRealData() {
         return realOBDAvailable;
+    }
+    
+    bool isSimulationEnabled() {
+        return simulationEnabled;
+    }
+    
+    void setSimulationEnabled(bool enabled) {
+        simulationEnabled = enabled;
+        Serial.println("Simulation " + String(enabled ? "enabled" : "disabled"));
     }
     
     String getLastError() {
@@ -189,6 +214,10 @@ public:
 class CustomFreematicsLogger
 {
 public:
+    void setSimulationEnabled(bool enabled) {
+        obd.setSimulationEnabled(enabled);
+    }
+    
     bool init()
     {
         bool success = true;
@@ -376,7 +405,8 @@ private:
             if (millis() - lastStatusTime > 5000) {
                 messageCounter++;
                 String statusData = String(messageCounter) + ":" + String(millis()) + ",STATUS:";
-                statusData += "OBD=" + String(obd.isUsingRealData() ? "REAL" : "SIM") + ",";
+                String obdStatus = obd.isUsingRealData() ? "REAL" : (obd.isSimulationEnabled() ? "SIM" : "OFF");
+                statusData += "OBD=" + obdStatus + ",";
                 statusData += "GPS=" + String((m_state & STATE_GPS_READY) ? "OK" : "FAIL") + ",";
                 statusData += "STORAGE=" + String((m_state & STATE_STORAGE_READY) ? "OK" : "FAIL") + ",";
                 statusData += "BLE=" + String((m_state & STATE_BLE_READY) ? "OK" : "FAIL") + ",";
@@ -414,8 +444,10 @@ private:
         // Add data source indicator
         if (obd.isUsingRealData()) {
             data += "MODE:REAL;";
-        } else {
+        } else if (obd.isSimulationEnabled()) {
             data += "MODE:SIMULATED;";
+        } else {
+            data += "MODE:DISABLED;";
         }
         
         int value;
