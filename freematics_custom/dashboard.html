@@ -264,9 +264,15 @@
                     const device = await navigator.bluetooth.requestDevice({
                         filters: [
                             { name: 'FreematicsCustom' },
-                            { namePrefix: 'Freematics' }
+                            { namePrefix: 'Freematics' },
+                            { namePrefix: 'ESP32' },
+                            { services: ['12345678-1234-1234-1234-123456789abc'] }
                         ],
-                        optionalServices: ['12345678-1234-1234-1234-123456789abc']
+                        optionalServices: [
+                            '12345678-1234-1234-1234-123456789abc',
+                            '0000180f-0000-1000-8000-00805f9b34fb', // Battery Service
+                            '0000180a-0000-1000-8000-00805f9b34fb'  // Device Information Service
+                        ]
                     }).catch(err => {
                         if (err.name === 'NotFoundError') {
                             throw new Error('No Freematics device found. Make sure the device is powered on and in range.');
@@ -275,8 +281,14 @@
                     });
 
                     console.log('Connecting to GATT server...');
+                    console.log('Device name:', device.name);
+                    console.log('Device ID:', device.id);
+                    
                     const server = await device.gatt.connect().catch(err => {
-                        console.error(err);
+                        console.error('GATT connection error:', err);
+                        if (err.message.includes('Unsupported device')) {
+                            throw new Error('Device not supported. Make sure you\'re connecting to a Freematics device with the correct firmware.');
+                        }
                         throw new Error(`GATT connection failed: ${err.message}`);
                     });
 
