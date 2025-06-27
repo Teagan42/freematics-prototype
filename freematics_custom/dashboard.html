@@ -1188,15 +1188,19 @@
                 // Handle special diagnostic messages that don't follow standard format
                 if (rawData.startsWith('DIAGNOSTIC_RESULTS:')) {
                     const diagnosticData = rawData.substring('DIAGNOSTIC_RESULTS:'.length);
+                    console.log('Processing diagnostic results:', diagnosticData);
                     try {
                         if (!diagnosticData || typeof diagnosticData !== 'string') {
                             throw new Error('Invalid diagnostic results format');
                         }
                         // Convert pipe separators to newlines and format properly
                         const results = diagnosticData.replace(/\|/g, '\n').replace(/\n+/g, '\n').trim();
+                        console.log('Formatted diagnostic results:', results);
                         setDiagnosticResults(prev => {
                             const currentResults = prev || '';
-                            return currentResults + (currentResults ? '\n' : '') + results;
+                            const newResults = currentResults + (currentResults ? '\n' : '') + results;
+                            console.log('Setting diagnostic results:', newResults);
+                            return newResults;
                         });
                         setDiagnosticError(null);
                     } catch (diagError) {
@@ -1250,24 +1254,16 @@
                     let dataToProcess = rawData;
                     let messageId = null;
                     
-                    // Special handling for diagnostic results that may not have message counter
-                    if (rawData.includes('DIAGNOSTIC_RESULTS:') || rawData.includes('DIAGNOSTIC_STARTED:') || rawData.includes('DIAGNOSTIC_COMPLETE:')) {
-                        // Check if it has message counter prefix
-                        if (rawData.includes(':') && rawData.match(/^\d+:/)) {
-                            const colonIndex = rawData.indexOf(':');
-                            messageId = parseInt(rawData.substring(0, colonIndex));
-                            dataToProcess = rawData.substring(colonIndex + 1);
-                            console.log('Message ID:', messageId, 'Data:', dataToProcess);
-                        } else {
-                            // No message counter, use raw data directly
-                            dataToProcess = rawData;
-                            console.log('Diagnostic message without counter:', dataToProcess);
-                        }
-                    } else if (rawData.includes(':') && rawData.match(/^\d+:/)) {
+                    // Handle message counter prefix (messageId:data)
+                    if (rawData.includes(':') && rawData.match(/^\d+:/)) {
                         const colonIndex = rawData.indexOf(':');
                         messageId = parseInt(rawData.substring(0, colonIndex));
                         dataToProcess = rawData.substring(colonIndex + 1);
                         console.log('Message ID:', messageId, 'Data:', dataToProcess);
+                    } else {
+                        // No message counter, use raw data directly
+                        dataToProcess = rawData;
+                        console.log('Processing data without message counter:', dataToProcess);
                     }
                     
                     const parts = dataToProcess.split(',');
