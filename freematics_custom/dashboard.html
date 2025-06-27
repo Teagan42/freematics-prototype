@@ -736,8 +736,8 @@
                     if (chartInstance.current) {
                         const chart = chartInstance.current;
                         chart.data.labels = timeLabels;
-                        chart.data.datasets[0].data = dataHistory.map(d => d.rpm);
-                        chart.data.datasets[1].data = dataHistory.map(d => d.speed);
+                        chart.data.datasets[0].data = dataHistory.map(d => d.rpm || 0);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.speed || 0);
 
                         if (chart.data.labels.length > 50) {
                             chart.data.labels = chart.data.labels.slice(-50);
@@ -751,10 +751,10 @@
                     if (tempChartInstance.current) {
                         const chart = tempChartInstance.current;
                         chart.data.labels = timeLabels;
-                        chart.data.datasets[0].data = dataHistory.map(d => d.coolant);
-                        chart.data.datasets[1].data = dataHistory.map(d => d.intakeTemp);
-                        chart.data.datasets[2].data = dataHistory.map(d => d.oilTemp);
-                        chart.data.datasets[3].data = dataHistory.map(d => d.exhaustTemp);
+                        chart.data.datasets[0].data = dataHistory.map(d => d.coolant || 0);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.intakeTemp || 0);
+                        chart.data.datasets[2].data = dataHistory.map(d => d.oilTemp || 0);
+                        chart.data.datasets[3].data = dataHistory.map(d => d.exhaustTemp || 0);
 
                         if (chart.data.labels.length > 50) {
                             chart.data.labels = chart.data.labels.slice(-50);
@@ -769,9 +769,9 @@
                     if (percentChartInstance.current) {
                         const chart = percentChartInstance.current;
                         chart.data.labels = timeLabels;
-                        chart.data.datasets[0].data = dataHistory.map(d => d.engineLoad);
-                        chart.data.datasets[1].data = dataHistory.map(d => d.throttlePos);
-                        chart.data.datasets[2].data = dataHistory.map(d => d.fuelLevel);
+                        chart.data.datasets[0].data = dataHistory.map(d => d.engineLoad || 0);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.throttlePos || 0);
+                        chart.data.datasets[2].data = dataHistory.map(d => d.fuelLevel || 0);
 
                         if (chart.data.labels.length > 50) {
                             chart.data.labels = chart.data.labels.slice(-50);
@@ -786,10 +786,10 @@
                     if (fuelChartInstance.current) {
                         const chart = fuelChartInstance.current;
                         chart.data.labels = timeLabels;
-                        chart.data.datasets[0].data = dataHistory.map(d => d.fuelPressure);
-                        chart.data.datasets[1].data = dataHistory.map(d => d.fuelRate);
-                        chart.data.datasets[2].data = dataHistory.map(d => d.fuelTrimShort);
-                        chart.data.datasets[3].data = dataHistory.map(d => d.fuelTrimLong);
+                        chart.data.datasets[0].data = dataHistory.map(d => d.fuelPressure || 0);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.fuelRate || 0);
+                        chart.data.datasets[2].data = dataHistory.map(d => d.fuelTrimShort || 0);
+                        chart.data.datasets[3].data = dataHistory.map(d => d.fuelTrimLong || 0);
 
                         if (chart.data.labels.length > 50) {
                             chart.data.labels = chart.data.labels.slice(-50);
@@ -1274,30 +1274,40 @@
 
                             // Add to history for charting only if we have sensor data
                             if (hasSensorData) {
-                                setDataHistory(prev => [...prev, {
-                                    timestamp: Date.now(),
-                                    rpm: dataUpdates.rpm !== undefined ? dataUpdates.rpm : data.rpm,
-                                    speed: dataUpdates.speed !== undefined ? dataUpdates.speed : data.speed,
-                                    coolant: dataUpdates.coolant !== undefined ? dataUpdates.coolant : data.coolant,
-                                    enginePressure: dataUpdates.enginePressure !== undefined ? dataUpdates.enginePressure : data.enginePressure,
-                                    batteryVoltage: dataUpdates.batteryVoltage !== undefined ? dataUpdates.batteryVoltage : data.batteryVoltage,
-                                    ambientTemp: dataUpdates.ambientTemp !== undefined ? dataUpdates.ambientTemp : data.ambientTemp,
-                                    engineLoad: dataUpdates.engineLoad !== undefined ? dataUpdates.engineLoad : data.engineLoad,
-                                    throttlePos: dataUpdates.throttlePos !== undefined ? dataUpdates.throttlePos : data.throttlePos,
-                                    intakeTemp: dataUpdates.intakeTemp !== undefined ? dataUpdates.intakeTemp : data.intakeTemp,
-                                    oilTemp: dataUpdates.oilTemp !== undefined ? dataUpdates.oilTemp : data.oilTemp,
-                                    exhaustTemp: dataUpdates.exhaustTemp !== undefined ? dataUpdates.exhaustTemp : data.exhaustTemp,
-                                    fuelPressure: dataUpdates.fuelPressure !== undefined ? dataUpdates.fuelPressure : data.fuelPressure,
-                                    fuelLevel: dataUpdates.fuelLevel !== undefined ? dataUpdates.fuelLevel : data.fuelLevel,
-                                    fuelTrimShort: dataUpdates.fuelTrimShort !== undefined ? dataUpdates.fuelTrimShort : data.fuelTrimShort,
-                                    fuelTrimLong: dataUpdates.fuelTrimLong !== undefined ? dataUpdates.fuelTrimLong : data.fuelTrimLong,
-                                    fuelRate: dataUpdates.fuelRate !== undefined ? dataUpdates.fuelRate : data.fuelRate,
-                                    mafFlow: dataUpdates.mafFlow !== undefined ? dataUpdates.mafFlow : data.mafFlow,
-                                    o2Voltage: dataUpdates.o2Voltage !== undefined ? dataUpdates.o2Voltage : data.o2Voltage,
-                                    catalystTemp: dataUpdates.catalystTemp !== undefined ? dataUpdates.catalystTemp : data.catalystTemp,
-                                    boostPressure: dataUpdates.boostPressure !== undefined ? dataUpdates.boostPressure : data.boostPressure,
-                                    turboRpm: dataUpdates.turboRpm !== undefined ? dataUpdates.turboRpm : data.turboRpm
-                                }].slice(-100)); // Keep last 100 entries
+                                setDataHistory(prev => {
+                                    const currentData = prev.length > 0 ? prev[prev.length - 1] : {
+                                        rpm: 0, speed: 0, coolant: 0, enginePressure: 0, batteryVoltage: 0,
+                                        ambientTemp: 0, engineLoad: 0, throttlePos: 0, intakeTemp: 0, oilTemp: 0,
+                                        exhaustTemp: 0, fuelPressure: 0, fuelLevel: 0, fuelTrimShort: 0,
+                                        fuelTrimLong: 0, fuelRate: 0, mafFlow: 0, o2Voltage: 0, catalystTemp: 0,
+                                        boostPressure: 0, turboRpm: 0
+                                    };
+                                    
+                                    return [...prev, {
+                                        timestamp: Date.now(),
+                                        rpm: dataUpdates.rpm !== undefined ? dataUpdates.rpm : currentData.rpm,
+                                        speed: dataUpdates.speed !== undefined ? dataUpdates.speed : currentData.speed,
+                                        coolant: dataUpdates.coolant !== undefined ? dataUpdates.coolant : currentData.coolant,
+                                        enginePressure: dataUpdates.enginePressure !== undefined ? dataUpdates.enginePressure : currentData.enginePressure,
+                                        batteryVoltage: dataUpdates.batteryVoltage !== undefined ? dataUpdates.batteryVoltage : currentData.batteryVoltage,
+                                        ambientTemp: dataUpdates.ambientTemp !== undefined ? dataUpdates.ambientTemp : currentData.ambientTemp,
+                                        engineLoad: dataUpdates.engineLoad !== undefined ? dataUpdates.engineLoad : currentData.engineLoad,
+                                        throttlePos: dataUpdates.throttlePos !== undefined ? dataUpdates.throttlePos : currentData.throttlePos,
+                                        intakeTemp: dataUpdates.intakeTemp !== undefined ? dataUpdates.intakeTemp : currentData.intakeTemp,
+                                        oilTemp: dataUpdates.oilTemp !== undefined ? dataUpdates.oilTemp : currentData.oilTemp,
+                                        exhaustTemp: dataUpdates.exhaustTemp !== undefined ? dataUpdates.exhaustTemp : currentData.exhaustTemp,
+                                        fuelPressure: dataUpdates.fuelPressure !== undefined ? dataUpdates.fuelPressure : currentData.fuelPressure,
+                                        fuelLevel: dataUpdates.fuelLevel !== undefined ? dataUpdates.fuelLevel : currentData.fuelLevel,
+                                        fuelTrimShort: dataUpdates.fuelTrimShort !== undefined ? dataUpdates.fuelTrimShort : currentData.fuelTrimShort,
+                                        fuelTrimLong: dataUpdates.fuelTrimLong !== undefined ? dataUpdates.fuelTrimLong : currentData.fuelTrimLong,
+                                        fuelRate: dataUpdates.fuelRate !== undefined ? dataUpdates.fuelRate : currentData.fuelRate,
+                                        mafFlow: dataUpdates.mafFlow !== undefined ? dataUpdates.mafFlow : currentData.mafFlow,
+                                        o2Voltage: dataUpdates.o2Voltage !== undefined ? dataUpdates.o2Voltage : currentData.o2Voltage,
+                                        catalystTemp: dataUpdates.catalystTemp !== undefined ? dataUpdates.catalystTemp : currentData.catalystTemp,
+                                        boostPressure: dataUpdates.boostPressure !== undefined ? dataUpdates.boostPressure : currentData.boostPressure,
+                                        turboRpm: dataUpdates.turboRpm !== undefined ? dataUpdates.turboRpm : currentData.turboRpm
+                                    }].slice(-100); // Keep last 100 entries
+                                });
                             }
                         }
                     }
@@ -1328,15 +1338,31 @@
 
             // Function to send commands to device
             const sendCommand = (command) => {
-                if (characteristic && device && device.gatt.connected) {
-                    const message = `CMD:${command}`;
-                    characteristic.writeValue(new TextEncoder().encode(message));
-                    console.log('Sent command:', message);
-                    
+                if (characteristic && device && device.gatt && device.gatt.connected) {
+                    try {
+                        const message = `CMD:${command}`;
+                        characteristic.writeValue(new TextEncoder().encode(message));
+                        console.log('Sent command:', message);
+                        
+                        setRawDataLog(prev => [...prev, {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: 'TX: ' + message,
+                            type: 'tx'
+                        }]);
+                    } catch (error) {
+                        console.error('Failed to send command:', error);
+                        setRawDataLog(prev => [...prev, {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: 'TX ERROR: Failed to send ' + command + ' - ' + error.message,
+                            type: 'error'
+                        }]);
+                    }
+                } else {
+                    console.warn('Cannot send command - device not connected');
                     setRawDataLog(prev => [...prev, {
                         timestamp: new Date().toLocaleTimeString(),
-                        data: 'TX: ' + message,
-                        type: 'tx'
+                        data: 'TX ERROR: Device not connected, cannot send ' + command,
+                        type: 'error'
                     }]);
                 }
             };
@@ -1413,7 +1439,27 @@
                         // Add to history for charting
                         setDataHistory(prev => [...prev, {
                             timestamp: Date.now(),
-                            ...simData
+                            rpm: simData.rpm || 0,
+                            speed: simData.speed || 0,
+                            coolant: simData.coolant || 0,
+                            enginePressure: simData.enginePressure || 0,
+                            batteryVoltage: simData.batteryVoltage || 0,
+                            ambientTemp: simData.ambientTemp || 0,
+                            engineLoad: simData.engineLoad || 0,
+                            throttlePos: simData.throttlePos || 0,
+                            intakeTemp: simData.intakeTemp || 0,
+                            oilTemp: simData.oilTemp || 0,
+                            exhaustTemp: simData.exhaustTemp || 0,
+                            fuelPressure: simData.fuelPressure || 0,
+                            fuelLevel: simData.fuelLevel || 0,
+                            fuelTrimShort: simData.fuelTrimShort || 0,
+                            fuelTrimLong: simData.fuelTrimLong || 0,
+                            fuelRate: parseFloat(simData.fuelRate) || 0,
+                            mafFlow: parseFloat(simData.mafFlow) || 0,
+                            o2Voltage: parseFloat(simData.o2Voltage) || 0,
+                            catalystTemp: simData.catalystTemp || 0,
+                            boostPressure: simData.boostPressure || 0,
+                            turboRpm: simData.turboRpm || 0
                         }].slice(-100));
                     }, 1000);
                     
