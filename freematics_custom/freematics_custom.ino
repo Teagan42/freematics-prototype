@@ -203,12 +203,10 @@ private:
     bool readHardwareSensor(uint8_t pid, int& value) {
         // Read directly from Freematics hardware sensors
         switch(pid) {
-            case PID_BATTERY_VOLTAGE: // Battery voltage
-            case PID_CONTROL_MODULE_VOLTAGE: // Same as battery voltage
+            case 0x42: // PID_BATTERY_VOLTAGE and PID_CONTROL_MODULE_VOLTAGE (same value)
                 value = readBatteryVoltage();
                 return true;
-            case PID_AMBIENT_AIR_TEMP: // Ambient temperature
-            case PID_AMBIENT_TEMPERATURE: // Custom alias
+            case 0x46: // PID_AMBIENT_AIR_TEMP and PID_AMBIENT_TEMPERATURE (same value)
                 value = readAmbientTemperature();
                 return true;
             case PID_ENGINE_PRESSURE: // Engine oil pressure (if available via hardware)
