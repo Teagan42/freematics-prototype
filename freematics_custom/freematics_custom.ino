@@ -81,107 +81,31 @@ private:
     String lastError = "";
     unsigned long lastErrorTime = 0;
     
-    String runHardwareDiagnostics() {
-        String results = "HW DIAG:\\n";
+    String runDiagnostics() {
+        String results = "";
         
-        // Test key ADC pins only
-        int adcPins[] = {36, 39, 34, 35};
-        for (int i = 0; i < 4; i++) {
-            int value = analogRead(adcPins[i]);
-            results += "GPIO" + String(adcPins[i]) + ":" + String(value);
-            results += (value < 100) ? "(L)" : (value > 3900) ? "(H)" : "(A)";
-            results += "\\n";
-        }
+        // Simple test array: name, test function, expected result
+        struct DiagTest {
+            const char* name;
+            bool (*test)();
+        };
         
-        // Test I2C bus
-        Wire.begin(21, 22);
-        int deviceCount = 0;
-        for (byte addr = 1; addr < 127; addr++) {
-            Wire.beginTransmission(addr);
-            if (Wire.endTransmission() == 0) {
-                results += "I2C:0x" + String(addr, HEX) + "\\n";
-                deviceCount++;
-            }
-        }
-        if (deviceCount == 0) results += "I2C:NONE\\n";
+        DiagTest tests[] = {
+            {"ADC", []() { return analogRead(36) > 0; }},
+            {"I2C", []() { Wire.begin(21, 22); return true; }},
+            {"OBD", []() { Serial2.begin(38400, SERIAL_8N1, 16, 17); delay(100); return true; }},
+            {"BLE", []() { return BLEDevice::getInitialized(); }},
+            {"VIN", []() { return analogRead(A0) > 100; }},
+            {"HEAP", []() { return ESP.getFreeHeap() > 50000; }},
+            {"CLIENT", []() { return bleClientConnected; }},
+            {"SERVER", []() { return pServer != NULL; }}
+        };
         
-        return results;
-    }
-    
-    String runOBDDiagnostics() {
-        String results = "OBD DIAG:\\n";
-        
-        Serial2.begin(38400, SERIAL_8N1, 16, 17);
-        delay(100);
-        
-        // Test key AT commands
-        String commands[] = {"ATZ", "0100"};
-        for (int i = 0; i < 2; i++) {
-            Serial2.println(commands[i]);
-            delay(500);
-            
-            String response = "";
-            unsigned long startTime = millis();
-            while (millis() - startTime < 1000 && Serial2.available()) {
-                char c = Serial2.read();
-                if (c != '\\r' && c != '\\n' && c != ' ') {
-                    response += c;
-                }
-            }
-            
-            results += commands[i] + ":";
-            results += (response.length() > 0) ? "OK" : "FAIL";
-            results += "\\n";
-        }
-        
-        return results;
-    }
-    
-    String runSystemDiagnostics() {
-        String results = "SYS DIAG:\\n";
-        
-        results += "CPU:" + String(ESP.getCpuFreqMHz()) + "MHz\\n";
-        results += "Heap:" + String(ESP.getFreeHeap() / 1024) + "KB\\n";
-        results += "Uptime:" + String(millis() / 1000) + "s\\n";
-        
-        int vin = analogRead(A0);
-        float voltage = (vin / 4095.0) * 3.3 * 6.0;
-        results += "Vin:" + String(voltage, 1) + "V";
-        if (voltage < 11.0) results += "(LOW)";
-        else if (voltage > 15.0) results += "(HIGH)";
-        else results += "(OK)";
-        results += "\\n";
-        
-        #ifdef SOC_TEMP_SENSOR_SUPPORTED
-        float temp = temperatureRead();
-        results += "Temp:" + String(temp, 0) + "C";
-        results += (temp > 80) ? "(HOT)" : "(OK)";
-        results += "\\n";
-        #endif
-        
-        results += "BLE:" + String(BLEDevice::getInitialized() ? "Y" : "N") + "\\n";
-        
-        return results;
-    }
-    
-    String runConnectivityDiagnostics() {
-        String results = "CONN DIAG:\\n";
-        
-        results += "BLE:" + String(BLEDevice::getInitialized() ? "Y" : "N") + "\\n";
-        results += "Client:" + String(bleClientConnected ? "Y" : "N") + "\\n";
-        results += "Server:" + String(pServer != NULL ? "Y" : "N") + "\\n";
-        
-        if (pServer) {
-            results += "Clients:" + String(pServer->getConnectedCount()) + "\\n";
-        }
-        
-        if (pCharacteristic && bleClientConnected) {
-            String testMsg = "TEST:" + String(millis());
-            pCharacteristic->setValue(testMsg.c_str());
-            pCharacteristic->notify();
-            results += "TX:OK\\n";
-        } else {
-            results += "TX:SKIP\\n";
+        for (int i = 0; i < 8; i++) {
+            results += tests[i].name;
+            results += ":";
+            results += tests[i].test() ? "OK" : "FAIL";
+            results += (i < 7) ? "," : "";
         }
         
         return results;
@@ -306,32 +230,7 @@ public:
     }
     
     String runFullDiagnostics() {
-        String results = "";
-        results += runSystemDiagnostics();
-        results += runHardwareDiagnostics();
-        results += runOBDDiagnostics();
-        results += runConnectivityDiagnostics();
-        results += "SUMMARY:\\n";
-        
-        if (results.indexOf("FAIL") != -1) {
-            results += "OBD issues detected\\n";
-        }
-        
-        if (results.indexOf("(LOW)") != -1) {
-            results += "Low voltage\\n";
-        }
-        
-        if (results.indexOf("(HOT)") != -1) {
-            results += "High temp\\n";
-        }
-        
-        if (results.indexOf("I2C:0x") != -1) {
-            results += "I2C devices found\\n";
-        }
-        
-        results += bleClientConnected ? "BLE connected\\n" : "No BLE client\\n";
-        results += "Done:" + String(millis()) + "ms\\n";
-        return results;
+        return runDiagnostics();
     }
     
     String getLastError() {
@@ -906,19 +805,8 @@ public:
                     
                     // Send results via BLE if connected
                     if (bleClientConnected && pCharacteristic) {
-                        // Split large diagnostic results into chunks
-                        String results = diagnosticResults;
-                        results.replace("\\n", "|"); // Replace newlines with pipe for BLE transmission
-                        
-                        String diagMsg = String(millis()) + ",DIAGNOSTIC_RESULTS:" + results + ";";
+                        String diagMsg = String(millis()) + ",DIAG:" + diagnosticResults + ";";
                         pCharacteristic->setValue(diagMsg.c_str());
-                        pCharacteristic->notify();
-                        
-                        delay(100); // Ensure message is sent
-                        
-                        // Send completion message
-                        String completeMsg = String(millis()) + ",DIAGNOSTIC_COMPLETE:SUCCESS;";
-                        pCharacteristic->setValue(completeMsg.c_str());
                         pCharacteristic->notify();
                     }
                     
