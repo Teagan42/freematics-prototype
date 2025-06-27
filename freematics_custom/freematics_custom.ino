@@ -122,23 +122,31 @@ public:
         // Handle LED blinking when no client connected
         handleLedBlink();
         
-        // Process OBD data
-        if (m_state & STATE_OBD_READY) {
-            processOBD();
+        // Only process data if BLE client is connected
+        if (bluetoothClientConnected) {
+            // Process OBD data
+            if (m_state & STATE_OBD_READY) {
+                processOBD();
+            }
+            
+            // Process GPS data
+            if (m_state & STATE_GPS_READY) {
+                processGPS();
+            }
+            
+            // Process MEMS data
+            if (m_state & STATE_MEMS_READY) {
+                processMEMS();
+            }
+            
+            // Send data via BLE for debugging
+            sendBLEData();
         }
-        
-        // Process GPS data
-        if (m_state & STATE_GPS_READY) {
-            processGPS();
-        }
-        
-        // Process MEMS data
-        if (m_state & STATE_MEMS_READY) {
-            processMEMS();
-        }
-        
-        // Send data via BLE for debugging
-        sendBLEData();
+    }
+    
+    void handleLedOnly()
+    {
+        handleLedBlink();
     }
     
 private:
@@ -252,6 +260,7 @@ void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
         if (isExpectedClient) {
             bluetoothClientConnected = true;
             Serial.println("BT connected (authorized): " + String(clientAddress));
+            Serial.println("Starting data collection...");
         } else {
             Serial.println("BT connection rejected (unauthorized): " + String(clientAddress));
             // Disconnect unauthorized client
@@ -260,6 +269,7 @@ void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
     } else if (event == ESP_SPP_CLOSE_EVT) {
         bluetoothClientConnected = false;
         Serial.println("BT disconnected");
+        Serial.println("Stopping data collection, waiting for BLE client...");
     }
 }
 
@@ -268,9 +278,6 @@ CustomFreematicsLogger logger;
 void setup()
 {
     Serial.begin(115200);
-    while (!Serial) {
-        ; // Wait for serial port to connect. Needed for native USB
-    }
     delay(1000);
     
     Serial.println("Freematics Custom Starting...");
@@ -281,11 +288,16 @@ void setup()
         Serial.println("Logger FAIL");
     }
     
-    Serial.println("Ready");
+    Serial.println("Waiting for BLE client connection...");
 }
 
 void loop()
 {
-    logger.process();
+    if (bluetoothClientConnected) {
+        logger.process();
+    } else {
+        // Just handle LED blinking while waiting for connection
+        logger.handleLedOnly();
+    }
     delay(100);
 }
