@@ -1127,12 +1127,25 @@
                         )}
                         {data.dataMode === 'DISABLED' && (
                             <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#e2e3e5', color: '#6c757d', borderRadius: '4px'}}>
-                                <strong>Info:</strong> Simulated data is disabled. Click "Start Simulation" to begin receiving test data.
+                                <strong>Info:</strong> Data collection is disabled. Click "Start Simulation" to begin receiving test data, or connect to a vehicle's OBD-II port for real data.
+                            </div>
+                        )}
+                        {data.dataMode === 'SIMULATED' && (
+                            <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#fff3cd', color: '#856404', borderRadius: '4px'}}>
+                                <strong>Simulation Mode:</strong> Displaying realistic test data for 80+ EPA-compliant PIDs. All engine, fuel, emissions, and diagnostic parameters are simulated.
+                            </div>
+                        )}
+                        {data.dataMode === 'REAL' && (
+                            <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#d4edda', color: '#155724', borderRadius: '4px'}}>
+                                <strong>Real Vehicle Data:</strong> Connected to vehicle ECU. Displaying live sensor readings from engine, emissions, and diagnostic systems.
                             </div>
                         )}
                         <div style={{marginTop: '10px', fontSize: '0.9em', color: '#6c757d'}}>
-                            <strong>Controls:</strong> Use the buttons above to start/stop simulation or refresh system status. 
-                            Simulation provides test data when no real vehicle is connected.
+                            <strong>Data Sources:</strong><br/>
+                            • <strong>REAL:</strong> Live vehicle OBD-II data (80+ PIDs from ECU)<br/>
+                            • <strong>SIMULATED:</strong> EPA-compliant test data for development<br/>
+                            • <strong>DISABLED:</strong> No data collection (hardware sensors only)<br/>
+                            <strong>Controls:</strong> Use buttons to toggle simulation or refresh system status.
                         </div>
                     </div>
 

@@ -65,13 +65,18 @@ The deployment script will automatically:
 
 ## Features
 
-- **OBD-II Data Collection**: Reads engine RPM, speed, coolant temperature, engine pressure
-- **Hardware Sensors**: Battery voltage, ambient temperature via built-in sensors
+- **Comprehensive OBD-II Data Collection**: Supports 80+ EPA-compliant PIDs including:
+  - Engine Management: RPM, speed, coolant temp, engine load, throttle position
+  - Fuel System: Fuel pressure, tank level, fuel trims, injection timing
+  - Air Intake: MAP, MAF, intake temperature, throttle positions
+  - Emissions Control: O2 sensors, EGR, catalyst temperatures, evap purge
+  - Advanced Diagnostics: Torque data, timing advance, fuel rail pressure
+- **Hardware Sensors**: Battery voltage, ambient temperature, barometric pressure
 - **GPS Tracking**: Collects location data and satellite information with averaging
-- **Simulation Mode**: Generate test data when no vehicle is connected
+- **Simulation Mode**: Generate realistic test data for all supported PIDs
 - **Data Storage**: Logs data to internal circular buffer (100 entries)
 - **BLE Communication**: Advanced protocol with command handling and API versioning
-- **Web Dashboard**: React-based real-time monitoring interface
+- **Web Dashboard**: React-based real-time monitoring interface with live charts
 - **Serial Debug**: Comprehensive debug output with message categorization
 
 ## Configuration

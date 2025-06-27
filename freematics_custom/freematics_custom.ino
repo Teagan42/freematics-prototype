@@ -621,6 +621,42 @@ private:
             case PID_FUEL_INJECTION_TIMING: value = -2 + random(-2, 4); return true; // degrees
             case PID_ENGINE_FUEL_RATE: value = 8 + random(-2, 4); return true; // L/h
             
+            // Additional Advanced Parameters
+            case PID_FUEL_RAIL_GAUGE_PRESSURE: value = 5800 + random(-300, 300); return true; // kPa
+            case PID_ABSOLUTE_EVAP_SYS_VAPOR_PRESSURE: value = 2500 + random(-100, 100); return true; // Pa
+            case PID_EVAP_SYS_VAPOR_PRESSURE2: value = 2500 + random(-100, 100); return true; // Pa
+            case PID_SHORT_TERM_SECONDARY_O2_TRIM_1: value = random(-5, 5); return true; // %
+            case PID_LONG_TERM_SECONDARY_O2_TRIM_1: value = random(-3, 3); return true; // %
+            case PID_SHORT_TERM_SECONDARY_O2_TRIM_2: value = random(-5, 5); return true; // %
+            case PID_LONG_TERM_SECONDARY_O2_TRIM_2: value = random(-3, 3); return true; // %
+            case PID_FUEL_RAIL_ABSOLUTE_PRESSURE: value = 5500 + random(-200, 200); return true; // kPa
+            case PID_RELATIVE_ACCELERATOR_PEDAL_POS: value = 25 + random(-5, 15); return true; // %
+            case PID_HYBRID_BATTERY_REMAINING: value = 85 + random(-10, 10); return true; // %
+            case PID_MAX_VALUES_EQUIV_RATIO: value = 1200 + random(-50, 50); return true; // ratio*1000
+            case PID_MAX_VALUES_AIR_FLOW_MAF: value = 25 + random(-5, 10); return true; // g/s
+            case PID_EMISSION_REQUIREMENTS: value = 1; return true; // OBD-II
+            
+            // Turbo & Boost Control (for turbocharged vehicles)
+            case PID_TURBOCHARGER_COMPRESSOR_INLET_PRESSURE: value = 101 + random(-2, 15); return true; // kPa
+            case PID_BOOST_PRESSURE_CONTROL: value = 0 + random(0, 50); return true; // kPa
+            case PID_VARIABLE_GEOMETRY_TURBO_CONTROL: value = 50 + random(-20, 20); return true; // %
+            case PID_WASTEGATE_CONTROL: value = 10 + random(-5, 15); return true; // %
+            case PID_EXHAUST_PRESSURE: value = 105 + random(-5, 10); return true; // kPa
+            case PID_TURBOCHARGER_RPM: value = 0; return true; // RPM (0 for non-turbo)
+            case PID_TURBOCHARGER_TEMP_1: value = 0; return true; // °C (0 for non-turbo)
+            case PID_TURBOCHARGER_TEMP_2: value = 0; return true; // °C (0 for non-turbo)
+            case PID_CHARGE_AIR_COOLER_TEMP: value = 30 + random(-5, 15); return true; // °C
+            case PID_EXHAUST_GAS_TEMP_BANK_1: value = 450 + random(-50, 100); return true; // °C
+            case PID_EXHAUST_GAS_TEMP_BANK_2: value = 450 + random(-50, 100); return true; // °C
+            
+            // Diesel Particulate Filter (for diesel vehicles - return 0 for gasoline)
+            case PID_DIESEL_PARTICULATE_FILTER_1: value = 0; return true; // Not applicable
+            case PID_DIESEL_PARTICULATE_FILTER_2: value = 0; return true; // Not applicable
+            case PID_DIESEL_PARTICULATE_FILTER_TEMP: value = 0; return true; // Not applicable
+            case PID_NOX_NTE_CONTROL_AREA_STATUS: value = 0; return true; // Not applicable
+            case PID_PM_NTE_CONTROL_AREA_STATUS: value = 0; return true; // Not applicable
+            case PID_ENGINE_RUN_TIME: value = 1800 + random(0, 600); return true; // seconds
+            
             default: 
                 lastError = "Unsupported simulated PID 0x" + String(pid, HEX);
                 lastErrorTime = millis();
@@ -837,19 +873,40 @@ private:
         // Fuel system data
         if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) store.log(PID_SHORT_TERM_FUEL_TRIM_1, value);
         if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) store.log(PID_LONG_TERM_FUEL_TRIM_1, value);
+        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_2, value)) store.log(PID_SHORT_TERM_FUEL_TRIM_2, value);
+        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_2, value)) store.log(PID_LONG_TERM_FUEL_TRIM_2, value);
         if (obd.readPID(PID_FUEL_PRESSURE, value)) store.log(PID_FUEL_PRESSURE, value);
         if (obd.readPID(PID_FUEL_TANK_LEVEL, value)) store.log(PID_FUEL_TANK_LEVEL, value);
+        if (obd.readPID(PID_FUEL_TYPE, value)) store.log(PID_FUEL_TYPE, value);
+        if (obd.readPID(PID_ETHANOL_FUEL_PERCENT, value)) store.log(PID_ETHANOL_FUEL_PERCENT, value);
+        if (obd.readPID(PID_FUEL_INJECTION_TIMING, value)) store.log(PID_FUEL_INJECTION_TIMING, value);
+        if (obd.readPID(PID_ENGINE_FUEL_RATE, value)) store.log(PID_ENGINE_FUEL_RATE, value);
         
         // Air intake system
         if (obd.readPID(PID_INTAKE_MAP, value)) store.log(PID_INTAKE_MAP, value);
         if (obd.readPID(PID_INTAKE_TEMP, value)) store.log(PID_INTAKE_TEMP, value);
         if (obd.readPID(PID_MAF_FLOW, value)) store.log(PID_MAF_FLOW, value);
+        if (obd.readPID(PID_TIMING_ADVANCE, value)) store.log(PID_TIMING_ADVANCE, value);
+        if (obd.readPID(PID_RELATIVE_THROTTLE_POS, value)) store.log(PID_RELATIVE_THROTTLE_POS, value);
+        if (obd.readPID(PID_ABSOLUTE_THROTTLE_POS_B, value)) store.log(PID_ABSOLUTE_THROTTLE_POS_B, value);
         
         // Emissions control
         if (obd.readPID(PID_O2_S1_VOLTAGE, value)) store.log(PID_O2_S1_VOLTAGE, value);
         if (obd.readPID(PID_O2_S2_VOLTAGE, value)) store.log(PID_O2_S2_VOLTAGE, value);
+        if (obd.readPID(PID_O2_S3_VOLTAGE, value)) store.log(PID_O2_S3_VOLTAGE, value);
+        if (obd.readPID(PID_O2_S4_VOLTAGE, value)) store.log(PID_O2_S4_VOLTAGE, value);
         if (obd.readPID(PID_COMMANDED_EGR, value)) store.log(PID_COMMANDED_EGR, value);
+        if (obd.readPID(PID_EGR_ERROR, value)) store.log(PID_EGR_ERROR, value);
+        if (obd.readPID(PID_COMMANDED_EVAP_PURGE, value)) store.log(PID_COMMANDED_EVAP_PURGE, value);
         if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) store.log(PID_CATALYST_TEMP_B1S1, value);
+        if (obd.readPID(PID_CATALYST_TEMP_B2S1, value)) store.log(PID_CATALYST_TEMP_B2S1, value);
+        
+        // Advanced diagnostics
+        if (obd.readPID(PID_ABSOLUTE_LOAD_VALUE, value)) store.log(PID_ABSOLUTE_LOAD_VALUE, value);
+        if (obd.readPID(PID_FUEL_AIR_COMMANDED_EQUIV_RATIO, value)) store.log(PID_FUEL_AIR_COMMANDED_EQUIV_RATIO, value);
+        if (obd.readPID(PID_ACCELERATOR_PEDAL_POS_D, value)) store.log(PID_ACCELERATOR_PEDAL_POS_D, value);
+        if (obd.readPID(PID_COMMANDED_THROTTLE_ACTUATOR, value)) store.log(PID_COMMANDED_THROTTLE_ACTUATOR, value);
+        if (obd.readPID(PID_ENGINE_OIL_TEMP, value)) store.log(PID_ENGINE_OIL_TEMP, value);
         
         // Hardware sensor PIDs (always available)
         if (obd.readPID(PID_BATTERY_VOLTAGE, value)) store.log(PID_BATTERY_VOLTAGE, value);
@@ -979,17 +1036,45 @@ private:
         if (obd.readPID(PID_FUEL_TANK_LEVEL, value)) data += "FUEL_LEVEL:" + String(value) + ";";
         if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) data += "STFT1:" + String(value) + ";";
         if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) data += "LTFT1:" + String(value) + ";";
+        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_2, value)) data += "STFT2:" + String(value) + ";";
+        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_2, value)) data += "LTFT2:" + String(value) + ";";
+        if (obd.readPID(PID_FUEL_PRESSURE, value)) data += "FUEL_PRESS:" + String(value) + ";";
+        if (obd.readPID(PID_FUEL_TYPE, value)) data += "FUEL_TYPE:" + String(value) + ";";
+        if (obd.readPID(PID_ETHANOL_FUEL_PERCENT, value)) data += "ETHANOL:" + String(value) + ";";
+        if (obd.readPID(PID_FUEL_INJECTION_TIMING, value)) data += "INJ_TIMING:" + String(value) + ";";
+        if (obd.readPID(PID_ENGINE_FUEL_RATE, value)) data += "FUEL_RATE:" + String(value) + ";";
         
         // Air intake system
         if (obd.readPID(PID_INTAKE_MAP, value)) data += "MAP:" + String(value) + ";";
         if (obd.readPID(PID_INTAKE_TEMP, value)) data += "IAT:" + String(value) + ";";
         if (obd.readPID(PID_MAF_FLOW, value)) data += "MAF:" + String(value) + ";";
+        if (obd.readPID(PID_TIMING_ADVANCE, value)) data += "TIMING:" + String(value) + ";";
+        if (obd.readPID(PID_RELATIVE_THROTTLE_POS, value)) data += "REL_THROTTLE:" + String(value) + ";";
+        if (obd.readPID(PID_ABSOLUTE_THROTTLE_POS_B, value)) data += "ABS_THROTTLE_B:" + String(value) + ";";
         
         // Emissions data
         if (obd.readPID(PID_O2_S1_VOLTAGE, value)) data += "O2S1:" + String(value) + ";";
         if (obd.readPID(PID_O2_S2_VOLTAGE, value)) data += "O2S2:" + String(value) + ";";
+        if (obd.readPID(PID_O2_S3_VOLTAGE, value)) data += "O2S3:" + String(value) + ";";
+        if (obd.readPID(PID_O2_S4_VOLTAGE, value)) data += "O2S4:" + String(value) + ";";
         if (obd.readPID(PID_COMMANDED_EGR, value)) data += "EGR:" + String(value) + ";";
-        if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) data += "CAT_TEMP:" + String(value) + ";";
+        if (obd.readPID(PID_EGR_ERROR, value)) data += "EGR_ERR:" + String(value) + ";";
+        if (obd.readPID(PID_COMMANDED_EVAP_PURGE, value)) data += "EVAP:" + String(value) + ";";
+        if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) data += "CAT_TEMP_B1S1:" + String(value) + ";";
+        if (obd.readPID(PID_CATALYST_TEMP_B2S1, value)) data += "CAT_TEMP_B2S1:" + String(value) + ";";
+        
+        // Advanced diagnostics
+        if (obd.readPID(PID_ABSOLUTE_LOAD_VALUE, value)) data += "ABS_LOAD:" + String(value) + ";";
+        if (obd.readPID(PID_FUEL_AIR_COMMANDED_EQUIV_RATIO, value)) data += "EQUIV_RATIO:" + String(value) + ";";
+        if (obd.readPID(PID_ACCELERATOR_PEDAL_POS_D, value)) data += "ACCEL_POS:" + String(value) + ";";
+        if (obd.readPID(PID_COMMANDED_THROTTLE_ACTUATOR, value)) data += "THROTTLE_CMD:" + String(value) + ";";
+        if (obd.readPID(PID_ENGINE_OIL_TEMP, value)) data += "OIL_TEMP:" + String(value) + ";";
+        
+        // System information
+        if (obd.readPID(PID_RUNTIME, value)) data += "RUNTIME:" + String(value) + ";";
+        if (obd.readPID(PID_DISTANCE_WITH_MIL, value)) data += "MIL_DIST:" + String(value) + ";";
+        if (obd.readPID(PID_WARMUPS_SINCE_CODES_CLEARED, value)) data += "WARMUPS:" + String(value) + ";";
+        if (obd.readPID(PID_DISTANCE_SINCE_CODES_CLEARED, value)) data += "CODES_DIST:" + String(value) + ";";
         
         // Hardware sensor data (should always be available)
         if (obd.readPID(PID_BATTERY_VOLTAGE, value)) data += "BATTERY:" + String(value) + ";";

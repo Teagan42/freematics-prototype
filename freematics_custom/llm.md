@@ -110,15 +110,56 @@ messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;SAT:count;MODE:status;
 
 ### Data Codes
 
-#### OBD-II Parameters (Engine Data)
+#### Engine Management PIDs (0x04-0x11)
+- **ENGINE_LOAD**: Calculated engine load percentage (PID 0x04)
+- **COOLANT_TEMP**: Engine coolant temperature in °C (PID 0x05)
+- **FUEL_TRIM_1/2**: Short/long term fuel trim percentages (PIDs 0x06-0x09)
+- **FUEL_PRESSURE**: Fuel system pressure in kPa (PID 0x0A)
+- **INTAKE_MAP**: Intake manifold absolute pressure (PID 0x0B)
 - **RPM**: Engine revolutions per minute (PID 0x0C)
-- **SPD**: Vehicle speed in km/h, converted to mph for display (PID 0x0D)
-- **COOLANT**: Engine coolant temperature in °C, converted to °F (PID 0x05)
+- **SPEED**: Vehicle speed in km/h (PID 0x0D)
+- **TIMING_ADVANCE**: Ignition timing advance in degrees (PID 0x0E)
+- **INTAKE_TEMP**: Intake air temperature in °C (PID 0x0F)
+- **MAF_FLOW**: Mass air flow rate in g/s (PID 0x10)
+- **THROTTLE_POS**: Throttle position percentage (PID 0x11)
+
+#### Emissions Control PIDs (0x14-0x3F)
+- **O2_S1-S8_VOLTAGE**: Oxygen sensor voltages (PIDs 0x14-0x1B)
+- **OBD_STANDARDS**: OBD compliance standard (PID 0x1C)
+- **O2_SENSORS_PRESENT**: Oxygen sensor configuration (PID 0x1D)
+- **RUNTIME**: Engine runtime since start (PID 0x1F)
+- **FUEL_RAIL_PRESSURE**: Fuel rail pressure (PID 0x22)
+- **COMMANDED_EGR**: EGR valve position command (PID 0x2C)
+- **EGR_ERROR**: EGR system error percentage (PID 0x2D)
+- **COMMANDED_EVAP_PURGE**: Evaporative purge control (PID 0x2E)
+- **FUEL_TANK_LEVEL**: Fuel tank level percentage (PID 0x2F)
+- **CATALYST_TEMP_B1S1/B2S1**: Catalyst temperatures (PIDs 0x3C-0x3F)
+
+#### Advanced Diagnostics PIDs (0x42-0x5F)
+- **CONTROL_MODULE_VOLTAGE**: ECU supply voltage (PID 0x42)
+- **ABSOLUTE_LOAD_VALUE**: Absolute load value (PID 0x43)
+- **FUEL_AIR_EQUIV_RATIO**: Commanded equivalence ratio (PID 0x44)
+- **RELATIVE_THROTTLE_POS**: Relative throttle position (PID 0x45)
+- **AMBIENT_AIR_TEMP**: Ambient air temperature (PID 0x46)
+- **ACCELERATOR_PEDAL_POS**: Accelerator pedal positions (PIDs 0x49-0x4B)
+- **COMMANDED_THROTTLE_ACTUATOR**: Throttle actuator control (PID 0x4C)
+- **FUEL_TYPE**: Fuel type identifier (PID 0x51)
+- **ETHANOL_FUEL_PERCENT**: Ethanol fuel percentage (PID 0x52)
+- **ENGINE_OIL_TEMP**: Engine oil temperature (PID 0x5C)
+- **FUEL_INJECTION_TIMING**: Fuel injection timing (PID 0x5D)
+- **ENGINE_FUEL_RATE**: Engine fuel consumption rate (PID 0x5E)
+
+#### Turbo/Boost Control PIDs (0x70-0x7F)
+- **BOOST_PRESSURE_CONTROL**: Boost pressure control (PID 0x70)
+- **TURBOCHARGER_RPM**: Turbocharger speed (PID 0x74)
+- **EXHAUST_GAS_TEMP**: Exhaust gas temperatures (PIDs 0x78-0x79)
+- **ENGINE_RUN_TIME**: Total engine runtime (PID 0x7F)
 
 #### Hardware Sensor Parameters
 - **BATTERY**: Vehicle battery voltage in centivolt (PID 0x42)
 - **AMBIENT**: Ambient temperature in °C, converted to °F (PID 0x46)
 - **PRESSURE**: Engine oil pressure in psi (PID 0x43)
+- **BAROMETRIC**: Atmospheric pressure in mbar (PID 0x33)
 
 #### GPS Data
 - **GPS**: Latitude,Longitude in decimal degrees (6 decimal places)
@@ -128,6 +169,14 @@ messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;SAT:count;MODE:status;
 - **MODE**: Data source (REAL/SIMULATED/DISABLED)
 - **API_VERSION**: Protocol version for compatibility
 - **STATUS**: Component health (OBD/GPS/STORAGE/BLE)
+
+### Supported PID Count
+- **Total PIDs**: 80+ EPA-compliant parameters
+- **Engine Management**: 14 core engine parameters
+- **Emissions Control**: 25+ emissions and fuel system parameters
+- **Advanced Diagnostics**: 20+ diagnostic and performance parameters
+- **Turbo/Boost**: 16 turbocharger and exhaust parameters
+- **Hardware Sensors**: 4 direct hardware readings
 
 ### Data Collection Intervals (Configurable in config.h)
 - **OBD**: 1000ms
