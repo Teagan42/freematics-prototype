@@ -201,27 +201,30 @@ check_remote_permissions() {
 deploy_html() {
     print_info "Deploying HTML file..."
     
-    # Create a temporary file with the target name
-    TEMP_FILE=$(mktemp)
-    cp "$LOCAL_HTML_FILE" "$TEMP_FILE"
+    print_info "File details:"
+    echo "  Local file: $LOCAL_HTML_FILE"
+    echo "  File size: $(wc -c < "$LOCAL_HTML_FILE") bytes"
+    echo "  Target: $SSH_TARGET:$REMOTE_PATH/$REMOTE_HTML_FILE"
     
-    # Upload the file
-    if scp $SSH_OPTS "$TEMP_FILE" "$SSH_TARGET:$REMOTE_PATH/$REMOTE_HTML_FILE" 2>/dev/null; then
+    # Upload the file directly (no temp file needed)
+    print_info "Uploading file..."
+    if scp $SSH_OPTS "$LOCAL_HTML_FILE" "$SSH_TARGET:$REMOTE_PATH/$REMOTE_HTML_FILE"; then
         print_status "HTML file uploaded successfully"
         
         # Set appropriate permissions
-        if ssh $SSH_OPTS "$SSH_TARGET" "chmod 644 $REMOTE_PATH/$REMOTE_HTML_FILE" 2>/dev/null; then
+        if ssh $SSH_OPTS "$SSH_TARGET" "chmod 644 $REMOTE_PATH/$REMOTE_HTML_FILE"; then
             print_status "File permissions set correctly"
         else
             print_warning "Could not set file permissions (file may still work)"
         fi
         
-        # Clean up temp file
-        rm -f "$TEMP_FILE"
         return 0
     else
         print_error "Failed to upload HTML file"
-        rm -f "$TEMP_FILE"
+        print_info "Troubleshooting steps:"
+        echo "  1. Check if remote directory exists: ssh $SSH_USER@$SERVER 'ls -la $REMOTE_PATH'"
+        echo "  2. Check disk space: ssh $SSH_USER@$SERVER 'df -h $REMOTE_PATH'"
+        echo "  3. Test manual upload: scp $LOCAL_HTML_FILE $SSH_USER@$SERVER:/tmp/"
         return 1
     fi
 }
