@@ -78,7 +78,7 @@ private:
     bool realOBDAvailable = false;
     String lastError = "";
     unsigned long lastErrorTime = 0;
-    
+    bool obdInitialized = false;
     
 public:
     bool init() { 
@@ -91,39 +91,122 @@ public:
         // Initialize OBD-II communication interface
         Serial.print("Initializing OBD-II interface...");
         
-        // Initialize Serial2 for OBD communication (adjust pins as needed)
+        // Try multiple initialization methods for different OBD interfaces
+        if (initOBDInterface()) {
+            obdInitialized = true;
+            Serial.println("OBD interface initialized");
+            
+            // Test OBD-II connection with vehicle
+            Serial.print("Testing OBD-II connection...");
+            
+            int testValue;
+            if (attemptRealOBDRead(0x0C, testValue)) {
+                realOBDAvailable = true;
+                lastError = "";
+                Serial.println("Real OBD-II connection established");
+                return true;
+            } else {
+                realOBDAvailable = false;
+                lastError = "No OBD-II response from vehicle";
+                Serial.println("No vehicle response, hardware sensors available");
+                return true; // Still return true to allow hardware sensor readings
+            }
+        } else {
+            obdInitialized = false;
+            realOBDAvailable = false;
+            lastError = "OBD interface initialization failed";
+            Serial.println("Failed, hardware sensors only");
+            return true; // Still return true to allow hardware sensor readings
+        }
+    }
+    
+    bool initOBDInterface() {
+        // Try UART-based OBD interface first (ELM327 style)
         Serial2.begin(38400, SERIAL_8N1, 16, 17); // RX=16, TX=17 for ESP32
         delay(100);
         
-        // Send initialization commands to OBD interface
-        Serial2.println("ATZ"); // Reset
-        delay(1000);
-        Serial2.println("ATE0"); // Echo off
-        delay(500);
-        Serial2.println("ATL0"); // Linefeeds off
-        delay(500);
-        Serial2.println("ATS0"); // Spaces off
-        delay(500);
-        Serial2.println("ATH1"); // Headers on
-        delay(500);
-        
-        Serial.println("OBD interface initialized");
-        
-        // Test OBD-II connection with vehicle
-        Serial.print("Testing OBD-II connection...");
-        
-        int testValue;
-        if (attemptRealOBDRead(0x0C, testValue)) {
-            realOBDAvailable = true;
-            lastError = "";
-            Serial.println("Real OBD-II connection established");
-            return true;
-        } else {
-            realOBDAvailable = false;
-            lastError = "No OBD-II response from vehicle";
-            Serial.println("No vehicle response, hardware sensors available");
-            return true; // Still return true to allow hardware sensor readings
+        // Clear any existing data
+        while (Serial2.available()) {
+            Serial2.read();
         }
+        
+        // Send AT commands for ELM327-style initialization
+        if (sendATCommand("ATZ", "ELM327", 2000)) { // Reset
+            delay(500);
+            if (sendATCommand("ATE0", "OK", 1000)) { // Echo off
+                delay(100);
+                if (sendATCommand("ATL0", "OK", 1000)) { // Linefeeds off
+                    delay(100);
+                    if (sendATCommand("ATS0", "OK", 1000)) { // Spaces off
+                        delay(100);
+                        if (sendATCommand("ATH1", "OK", 1000)) { // Headers on
+                            delay(100);
+                            if (sendATCommand("ATSP0", "OK", 1000)) { // Auto protocol
+                                delay(100);
+                                Serial.println("ELM327-style interface ready");
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Try different baud rates for direct CAN interface
+        int baudRates[] = {115200, 500000, 250000, 38400, 9600};
+        for (int i = 0; i < 5; i++) {
+            Serial2.begin(baudRates[i], SERIAL_8N1, 16, 17);
+            delay(100);
+            
+            // Clear buffer
+            while (Serial2.available()) {
+                Serial2.read();
+            }
+            
+            // Try simple initialization
+            if (sendATCommand("ATZ", "OK", 1000)) {
+                Serial.println("Direct CAN interface ready at " + String(baudRates[i]));
+                return true;
+            }
+        }
+        
+        Serial.println("No OBD interface detected");
+        return false;
+    }
+    
+    bool sendATCommand(const String& command, const String& expectedResponse, unsigned long timeout) {
+        // Clear input buffer
+        while (Serial2.available()) {
+            Serial2.read();
+        }
+        
+        // Send command
+        Serial2.println(command);
+        Serial2.flush();
+        
+        // Wait for response
+        String response = "";
+        unsigned long startTime = millis();
+        
+        while (millis() - startTime < timeout) {
+            if (Serial2.available()) {
+                char c = Serial2.read();
+                if (c == '\r' || c == '\n') {
+                    if (response.length() > 0) {
+                        break;
+                    }
+                } else {
+                    response += c;
+                }
+            }
+            delay(1);
+        }
+        
+        response.trim();
+        response.toUpperCase();
+        
+        // Check if response contains expected string
+        return response.indexOf(expectedResponse.c_str()) >= 0;
     }
     
     bool readPID(uint8_t pid, int& value) {
@@ -137,11 +220,20 @@ public:
             if (attemptRealOBDRead(pid, value)) {
                 return true;
             } else {
-                // Real OBD failed
+                // Real OBD failed - try to reconnect once
+                Serial.println("OBD read failed, attempting reconnection...");
+                if (initOBDInterface()) {
+                    // Try one more time after reconnection
+                    if (attemptRealOBDRead(pid, value)) {
+                        return true;
+                    }
+                }
+                
+                // Mark as unavailable
                 realOBDAvailable = false;
                 lastError = "Real OBD-II read failed for PID 0x" + String(pid, HEX);
                 lastErrorTime = millis();
-                Serial.println("OBD-II read failed");
+                Serial.println("OBD-II connection lost");
             }
         }
         
@@ -542,40 +634,88 @@ private:
     }
 
     bool attemptRealOBDRead(uint8_t pid, int& value) {
-        // Real OBD-II communication implementation
-        // This requires actual OBD-II interface hardware and protocol implementation
-        
-        // Send OBD-II request: Mode 01 (current data) + PID
-        String obdRequest = "01" + String(pid, HEX);
-        if (pid < 0x10) obdRequest = "010" + String(pid, HEX); // Pad with zero
-        
-        // Send request via OBD interface (implementation depends on hardware)
-        // For Freematics ONE+, this would typically use the built-in OBD interface
-        Serial2.println(obdRequest); // Assuming OBD interface on Serial2
-        
-        // Wait for response with timeout
-        unsigned long startTime = millis();
-        String response = "";
-        while (millis() - startTime < 1000) { // 1 second timeout
-            if (Serial2.available()) {
-                char c = Serial2.read();
-                response += c;
-                if (c == '\r' || c == '\n') break;
-            }
+        if (!obdInitialized) {
+            lastError = "OBD interface not initialized";
+            lastErrorTime = millis();
+            return false;
         }
         
+        // Format OBD-II request: Mode 01 (current data) + PID
+        String obdRequest = "01";
+        if (pid < 0x10) {
+            obdRequest += "0" + String(pid, HEX);
+        } else {
+            obdRequest += String(pid, HEX);
+        }
+        obdRequest.toUpperCase();
+        
+        // Clear input buffer
+        while (Serial2.available()) {
+            Serial2.read();
+        }
+        
+        // Send request
+        Serial2.println(obdRequest);
+        Serial2.flush();
+        
+        // Wait for response with timeout
+        String response = "";
+        unsigned long startTime = millis();
+        bool responseComplete = false;
+        
+        while (millis() - startTime < 2000 && !responseComplete) { // 2 second timeout
+            if (Serial2.available()) {
+                char c = Serial2.read();
+                
+                if (c == '>') {
+                    // ELM327 prompt indicates end of response
+                    responseComplete = true;
+                    break;
+                } else if (c == '\r' || c == '\n') {
+                    if (response.length() > 0) {
+                        // Check if this line contains our response
+                        if (response.startsWith("41")) {
+                            responseComplete = true;
+                            break;
+                        }
+                        response = ""; // Reset for next line
+                    }
+                } else if (c != ' ') { // Ignore spaces
+                    response += c;
+                }
+            }
+            delay(1);
+        }
+        
+        response.trim();
+        response.toUpperCase();
+        
         // Parse OBD-II response
-        if (response.length() > 6 && response.startsWith("41")) {
-            // Valid response format: "41 [PID] [DATA]"
-            String pidResponse = response.substring(2, 4);
-            if (pidResponse.equals(String(pid, HEX))) {
+        if (response.length() >= 6 && response.startsWith("41")) {
+            // Valid response format: "41[PID][DATA]"
+            String pidHex = String(pid, HEX);
+            if (pid < 0x10) pidHex = "0" + pidHex;
+            pidHex.toUpperCase();
+            
+            String expectedStart = "41" + pidHex;
+            if (response.startsWith(expectedStart)) {
                 // Extract data bytes and convert based on PID
-                String dataBytes = response.substring(4);
+                String dataBytes = response.substring(expectedStart.length());
                 return parseOBDResponse(pid, dataBytes, value);
             }
         }
         
-        lastError = "No OBD response for PID 0x" + String(pid, HEX);
+        // Check for common error responses
+        if (response.indexOf("NODATA") >= 0) {
+            lastError = "No data available for PID 0x" + String(pid, HEX);
+        } else if (response.indexOf("ERROR") >= 0) {
+            lastError = "OBD error for PID 0x" + String(pid, HEX);
+        } else if (response.length() == 0) {
+            lastError = "No response for PID 0x" + String(pid, HEX);
+        } else {
+            lastError = "Invalid response for PID 0x" + String(pid, HEX) + ": " + response;
+        }
+        
         lastErrorTime = millis();
         return false;
     }
@@ -584,13 +724,31 @@ private:
         // Parse OBD-II response data based on PID
         dataBytes.trim();
         dataBytes.replace(" ", ""); // Remove spaces
+        dataBytes.toUpperCase();
+        
+        // Validate minimum data length
+        if (dataBytes.length() < 2) {
+            lastError = "Insufficient data for PID 0x" + String(pid, HEX);
+            lastErrorTime = millis();
+            return false;
+        }
         
         // Get data bytes as integers
         int A = 0, B = 0, C = 0, D = 0;
-        if (dataBytes.length() >= 2) A = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
-        if (dataBytes.length() >= 4) B = strtol(dataBytes.substring(2, 4).c_str(), NULL, 16);
-        if (dataBytes.length() >= 6) C = strtol(dataBytes.substring(4, 6).c_str(), NULL, 16);
-        if (dataBytes.length() >= 8) D = strtol(dataBytes.substring(6, 8).c_str(), NULL, 16);
+        
+        // Parse hex bytes safely
+        if (dataBytes.length() >= 2) {
+            A = (int)strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
+        }
+        if (dataBytes.length() >= 4) {
+            B = (int)strtol(dataBytes.substring(2, 4).c_str(), NULL, 16);
+        }
+        if (dataBytes.length() >= 6) {
+            C = (int)strtol(dataBytes.substring(4, 6).c_str(), NULL, 16);
+        }
+        if (dataBytes.length() >= 8) {
+            D = (int)strtol(dataBytes.substring(6, 8).c_str(), NULL, 16);
+        }
         
         switch(pid) {
             // Engine Management
