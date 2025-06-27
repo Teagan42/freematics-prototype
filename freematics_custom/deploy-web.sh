@@ -240,10 +240,28 @@ verify_deployment() {
     LOCAL_SIZE=$(stat -f%z "$LOCAL_HTML_FILE" 2>/dev/null || stat -c%s "$LOCAL_HTML_FILE" 2>/dev/null || echo 0)
     
     if [ "$REMOTE_SIZE" -eq "$LOCAL_SIZE" ] && [ "$REMOTE_SIZE" -gt 0 ]; then
-        print_status "Deployment verified (file sizes match: $LOCAL_SIZE bytes)"
-        return 0
+        print_status "File upload verified (sizes match: $LOCAL_SIZE bytes)"
+        
+        # Test HTTP accessibility
+        print_info "Testing HTTP accessibility..."
+        HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$SERVER/$REMOTE_HTML_FILE" 2>/dev/null || echo "000")
+        
+        if [ "$HTTP_STATUS" = "200" ]; then
+            print_status "HTTP verification successful (status: $HTTP_STATUS)"
+            return 0
+        elif [ "$HTTP_STATUS" = "000" ]; then
+            print_warning "HTTP test failed (connection error)"
+            print_info "File uploaded but HTTP accessibility could not be verified"
+            print_info "This may be due to firewall, DNS, or network configuration"
+            return 0  # Don't fail deployment for network issues
+        else
+            print_warning "HTTP test returned status: $HTTP_STATUS"
+            print_info "File uploaded but may not be accessible via web"
+            print_info "Check nginx configuration and file permissions"
+            return 0  # Don't fail deployment for HTTP config issues
+        fi
     else
-        print_error "Deployment verification failed"
+        print_error "File upload verification failed"
         echo "  Local size: $LOCAL_SIZE bytes"
         echo "  Remote size: $REMOTE_SIZE bytes"
         return 1
@@ -263,6 +281,10 @@ get_server_info() {
     echo "🌐 Your Freematics BLE Dashboard is now available at:"
     echo "   http://$SERVER_INFO/$REMOTE_HTML_FILE"
     echo "   https://$SERVER_INFO/$REMOTE_HTML_FILE (if SSL is configured)"
+    echo ""
+    echo "🔍 Verification URLs:"
+    echo "   curl -I http://$SERVER_INFO/$REMOTE_HTML_FILE"
+    echo "   curl -I https://$SERVER_INFO/$REMOTE_HTML_FILE"
     echo ""
     echo "📱 To use the dashboard:"
     echo "   1. Open the URL in Chrome, Edge, or another Web Bluetooth compatible browser"
