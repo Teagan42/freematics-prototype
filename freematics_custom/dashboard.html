@@ -1400,21 +1400,7 @@
             }
         };
 
-        const handleDisconnection = () => {
-                console.log('Device disconnected');
-                setIsConnected(false);
-                setDevice(null);
-                setCharacteristic(null);
-                
-                // Log disconnection
-                setRawDataLog(prev => [...prev, {
-                    timestamp: new Date().toLocaleTimeString(),
-                    data: 'Device disconnected',
-                    type: 'disconnect'
-                }]);
-            };
-
-            const disconnect = () => {
+        const disconnect = () => {
                 if (device && device.gatt.connected) {
                     device.gatt.disconnect();
                 }
