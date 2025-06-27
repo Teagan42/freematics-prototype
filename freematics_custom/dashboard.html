@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Freematics BLE Dashboard</title>
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -252,7 +252,12 @@
                     setError(null);
                     
                     if (!navigator.bluetooth) {
-                        throw new Error('Web Bluetooth is not supported in this browser');
+                        throw new Error('Web Bluetooth is not supported in this browser. Please use Chrome/Edge with HTTPS.');
+                    }
+
+                    // Check if we're on HTTPS (required for Web Bluetooth)
+                    if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+                        throw new Error('Web Bluetooth requires HTTPS. Please serve this page over HTTPS.');
                     }
 
                     console.log('Requesting Bluetooth device...');
@@ -262,6 +267,11 @@
                             { namePrefix: 'Freematics' }
                         ],
                         optionalServices: ['12345678-1234-1234-1234-123456789abc']
+                    }).catch(err => {
+                        if (err.name === 'NotFoundError') {
+                            throw new Error('No Freematics device found. Make sure the device is powered on and in range.');
+                        }
+                        throw err;
                     });
 
                     console.log('Connecting to GATT server...');
@@ -395,7 +405,15 @@
 
                     {!navigator.bluetooth && (
                         <div className="error-message">
-                            Web Bluetooth is not supported in this browser. Please use Chrome, Edge, or another compatible browser.
+                            Web Bluetooth is not supported in this browser. Please use Chrome or Edge with HTTPS enabled.
+                            <br />
+                            <small>Note: Safari has limited Web Bluetooth support. For best results, use Chrome or Edge.</small>
+                        </div>
+                    )}
+
+                    {navigator.bluetooth && location.protocol !== 'https:' && location.hostname !== 'localhost' && (
+                        <div className="error-message">
+                            Web Bluetooth requires HTTPS. Please serve this page over HTTPS or use localhost for testing.
                         </div>
                     )}
 
