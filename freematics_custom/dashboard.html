@@ -127,6 +127,32 @@
         .log-entry:last-child {
             border-bottom: none;
         }
+        .log-entry.error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            padding: 8px;
+            border-radius: 4px;
+            margin: 2px 0;
+        }
+        .status-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status-item {
+            display: inline-block;
+            margin: 5px 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        .status-item.real { background: #d4edda; color: #155724; }
+        .status-item.simulated { background: #fff3cd; color: #856404; }
+        .status-item.ok { background: #d4edda; color: #155724; }
+        .status-item.fail { background: #f8d7da; color: #721c24; }
         .error-message {
             background: #f8d7da;
             color: #721c24;
@@ -155,7 +181,10 @@
                 batteryVoltage: 0,
                 ambientTemp: 0,
                 gps: { lat: 0, lng: 0, satellites: 0 },
-                timestamp: 0
+                timestamp: 0,
+                dataMode: 'UNKNOWN',
+                lastError: '',
+                systemStatus: {}
             });
             const [dataHistory, setDataHistory] = useState([]);
             const [rawDataLog, setRawDataLog] = useState([]);
@@ -473,6 +502,30 @@
                                             };
                                         }
                                         break;
+                                    case 'SAT':
+                                        newData.gps = {
+                                            ...newData.gps,
+                                            satellites: parseInt(value) || 0
+                                        };
+                                        break;
+                                    case 'MODE':
+                                        newData.dataMode = value;
+                                        break;
+                                    case 'ERROR':
+                                        newData.lastError = value;
+                                        break;
+                                    case 'STATUS':
+                                        // Parse status information like "OBD=REAL,GPS=OK,STORAGE=OK"
+                                        const statusPairs = value.split(',');
+                                        const statusObj = {};
+                                        statusPairs.forEach(statusPair => {
+                                            const [statusKey, statusValue] = statusPair.split('=');
+                                            if (statusKey && statusValue) {
+                                                statusObj[statusKey] = statusValue;
+                                            }
+                                        });
+                                        newData.systemStatus = statusObj;
+                                        break;
                                 }
                             }
                         });
@@ -577,30 +630,55 @@
                         </div>
                     )}
 
+                    <div className="status-panel">
+                        <h3>System Status</h3>
+                        <div>
+                            <span className={`status-item ${data.dataMode.toLowerCase()}`}>
+                                Data: {data.dataMode}
+                            </span>
+                            {Object.entries(data.systemStatus).map(([key, value]) => (
+                                <span key={key} className={`status-item ${value.toLowerCase()}`}>
+                                    {key}: {value}
+                                </span>
+                            ))}
+                        </div>
+                        {data.lastError && (
+                            <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px'}}>
+                                <strong>Last Error:</strong> {data.lastError}
+                            </div>
+                        )}
+                    </div>
+
                     <div className="metrics-grid">
                         <div className="metric-card">
                             <div className="metric-label">Engine RPM</div>
                             <div className={`metric-value ${getColorClass(data.rpm, 'rpm')}`}>{data.rpm.toLocaleString()}</div>
+                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Speed</div>
                             <div className={`metric-value ${getColorClass(data.speed, 'speed')}`}>{data.speed} <small>mph</small></div>
+                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Coolant Temp</div>
                             <div className={`metric-value ${getColorClass(data.coolant, 'coolant')}`}>{data.coolant}°F</div>
+                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Engine Pressure</div>
                             <div className={`metric-value ${getColorClass(data.enginePressure, 'pressure')}`}>{data.enginePressure} <small>psi</small></div>
+                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Battery Voltage</div>
                             <div className={`metric-value ${getColorClass(data.batteryVoltage, 'battery')}`}>{data.batteryVoltage.toFixed(1)} <small>V</small></div>
+                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">Ambient Temp</div>
                             <div className={`metric-value ${getColorClass(data.ambientTemp, 'ambient')}`}>{data.ambientTemp}°F</div>
+                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">GPS Satellites</div>
@@ -629,11 +707,14 @@
 
                     <div className="data-log">
                         <h3>Raw Data Log</h3>
-                        {rawDataLog.slice(-10).reverse().map((entry, index) => (
-                            <div key={index} className="log-entry">
-                                <strong>{entry.timestamp}:</strong> {entry.data}
-                            </div>
-                        ))}
+                        {rawDataLog.slice(-10).reverse().map((entry, index) => {
+                            const isError = entry.data.includes('ERROR:') || entry.data.includes('STATUS:');
+                            return (
+                                <div key={index} className={`log-entry ${isError ? 'error' : ''}`}>
+                                    <strong>{entry.timestamp}:</strong> {entry.data}
+                                </div>
+                            );
+                        })}
                         {rawDataLog.length === 0 && (
                             <div className="log-entry">No data received yet...</div>
                         )}
