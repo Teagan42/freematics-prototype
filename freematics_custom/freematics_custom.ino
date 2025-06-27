@@ -147,6 +147,37 @@ public:
         }
     }
     
+    // Get all available PIDs for this vehicle
+    bool getSupportedPIDs(uint8_t* pidList, int& pidCount) {
+        pidCount = 0;
+        
+        // Standard EPA-required PIDs for emissions compliance
+        uint8_t standardPIDs[] = {
+            PID_ENGINE_LOAD, PID_COOLANT_TEMP, PID_SHORT_TERM_FUEL_TRIM_1, PID_LONG_TERM_FUEL_TRIM_1,
+            PID_FUEL_PRESSURE, PID_INTAKE_MAP, PID_RPM, PID_SPEED, PID_TIMING_ADVANCE, PID_INTAKE_TEMP,
+            PID_MAF_FLOW, PID_THROTTLE_POS, PID_O2_S1_VOLTAGE, PID_O2_S2_VOLTAGE, PID_OBD_STANDARDS,
+            PID_O2_SENSORS_PRESENT, PID_RUNTIME, PID_DISTANCE_WITH_MIL, PID_FUEL_RAIL_PRESSURE,
+            PID_COMMANDED_EGR, PID_EGR_ERROR, PID_COMMANDED_EVAP_PURGE, PID_FUEL_TANK_LEVEL,
+            PID_WARMUPS_SINCE_CODES_CLEARED, PID_DISTANCE_SINCE_CODES_CLEARED, PID_ABSOLUTE_BAROMETRIC_PRESSURE,
+            PID_CATALYST_TEMP_B1S1, PID_CONTROL_MODULE_VOLTAGE, PID_ABSOLUTE_LOAD_VALUE,
+            PID_FUEL_AIR_COMMANDED_EQUIV_RATIO, PID_RELATIVE_THROTTLE_POS, PID_AMBIENT_AIR_TEMP,
+            PID_ABSOLUTE_THROTTLE_POS_B, PID_ACCELERATOR_PEDAL_POS_D, PID_COMMANDED_THROTTLE_ACTUATOR,
+            PID_TIME_WITH_MIL_ON, PID_TIME_SINCE_CODES_CLEARED, PID_FUEL_TYPE, PID_ETHANOL_FUEL_PERCENT,
+            PID_ENGINE_OIL_TEMP, PID_FUEL_INJECTION_TIMING, PID_ENGINE_FUEL_RATE
+        };
+        
+        int standardCount = sizeof(standardPIDs) / sizeof(standardPIDs[0]);
+        for (int i = 0; i < standardCount && pidCount < 100; i++) {
+            pidList[pidCount++] = standardPIDs[i];
+        }
+        
+        // Add hardware sensor PIDs
+        pidList[pidCount++] = PID_BATTERY_VOLTAGE;
+        pidList[pidCount++] = PID_ENGINE_PRESSURE;
+        
+        return true;
+    }
+    
     bool isUsingRealData() {
         return realOBDAvailable;
     }
@@ -172,14 +203,19 @@ private:
     bool readHardwareSensor(uint8_t pid, int& value) {
         // Read directly from Freematics hardware sensors
         switch(pid) {
-            case 0x42: // Battery voltage (custom PID)
+            case PID_BATTERY_VOLTAGE: // Battery voltage
+            case PID_CONTROL_MODULE_VOLTAGE: // Same as battery voltage
                 value = readBatteryVoltage();
                 return true;
-            case 0x46: // Ambient temperature (custom PID)  
+            case PID_AMBIENT_AIR_TEMP: // Ambient temperature
+            case PID_AMBIENT_TEMPERATURE: // Custom alias
                 value = readAmbientTemperature();
                 return true;
-            case 0x43: // Engine oil pressure (if available via hardware)
+            case PID_ENGINE_PRESSURE: // Engine oil pressure (if available via hardware)
                 value = readEnginePressure();
+                return true;
+            case PID_ABSOLUTE_BAROMETRIC_PRESSURE: // Atmospheric pressure
+                value = readBarometricPressure();
                 return true;
             default:
                 return false; // Not a hardware sensor PID
@@ -189,9 +225,72 @@ private:
     bool isOBDOnlyPID(uint8_t pid) {
         // These PIDs require OBD-II connection to ECU
         switch(pid) {
-            case 0x0C: // Engine RPM
-            case 0x0D: // Vehicle speed
-            case 0x05: // Engine coolant temperature
+            // Engine Management
+            case PID_ENGINE_LOAD:
+            case PID_COOLANT_TEMP:
+            case PID_SHORT_TERM_FUEL_TRIM_1:
+            case PID_LONG_TERM_FUEL_TRIM_1:
+            case PID_SHORT_TERM_FUEL_TRIM_2:
+            case PID_LONG_TERM_FUEL_TRIM_2:
+            case PID_FUEL_PRESSURE:
+            case PID_INTAKE_MAP:
+            case PID_RPM:
+            case PID_SPEED:
+            case PID_TIMING_ADVANCE:
+            case PID_INTAKE_TEMP:
+            case PID_MAF_FLOW:
+            case PID_THROTTLE_POS:
+            
+            // Oxygen Sensors
+            case PID_O2_S1_VOLTAGE:
+            case PID_O2_S2_VOLTAGE:
+            case PID_O2_S3_VOLTAGE:
+            case PID_O2_S4_VOLTAGE:
+            case PID_O2_S5_VOLTAGE:
+            case PID_O2_S6_VOLTAGE:
+            case PID_O2_S7_VOLTAGE:
+            case PID_O2_S8_VOLTAGE:
+            
+            // Emissions Control
+            case PID_COMMANDED_EGR:
+            case PID_EGR_ERROR:
+            case PID_COMMANDED_EVAP_PURGE:
+            case PID_FUEL_TANK_LEVEL:
+            case PID_EVAP_SYS_VAPOR_PRESSURE:
+            case PID_CATALYST_TEMP_B1S1:
+            case PID_CATALYST_TEMP_B2S1:
+            case PID_CATALYST_TEMP_B1S2:
+            case PID_CATALYST_TEMP_B2S2:
+            
+            // Advanced Engine Parameters
+            case PID_FUEL_RAIL_PRESSURE:
+            case PID_FUEL_RAIL_GAUGE_PRESSURE:
+            case PID_ABSOLUTE_LOAD_VALUE:
+            case PID_FUEL_AIR_COMMANDED_EQUIV_RATIO:
+            case PID_RELATIVE_THROTTLE_POS:
+            case PID_ABSOLUTE_THROTTLE_POS_B:
+            case PID_ABSOLUTE_THROTTLE_POS_C:
+            case PID_ACCELERATOR_PEDAL_POS_D:
+            case PID_ACCELERATOR_PEDAL_POS_E:
+            case PID_ACCELERATOR_PEDAL_POS_F:
+            case PID_COMMANDED_THROTTLE_ACTUATOR:
+            
+            // Fuel System
+            case PID_FUEL_TYPE:
+            case PID_ETHANOL_FUEL_PERCENT:
+            case PID_ENGINE_OIL_TEMP:
+            case PID_FUEL_INJECTION_TIMING:
+            case PID_ENGINE_FUEL_RATE:
+            
+            // Diagnostic Information
+            case PID_OBD_STANDARDS:
+            case PID_O2_SENSORS_PRESENT:
+            case PID_RUNTIME:
+            case PID_DISTANCE_WITH_MIL:
+            case PID_WARMUPS_SINCE_CODES_CLEARED:
+            case PID_DISTANCE_SINCE_CODES_CLEARED:
+            case PID_TIME_WITH_MIL_ON:
+            case PID_TIME_SINCE_CODES_CLEARED:
                 return true;
             default:
                 return false;
@@ -241,6 +340,13 @@ private:
         // For now, return a reasonable default since most setups won't have this
         return 35 + random(-5, 5); // Typical oil pressure in psi
     }
+    
+    int readBarometricPressure() {
+        // Read atmospheric pressure (standard atmosphere at sea level)
+        // Could be connected to BMP280 or similar sensor
+        // For now, return standard atmospheric pressure with small variation
+        return 1013 + random(-10, 10); // Standard atmosphere in mbar
+    }
 
     bool attemptRealOBDRead(uint8_t pid, int& value) {
         // Real OBD-II communication implementation
@@ -286,38 +392,168 @@ private:
         dataBytes.trim();
         dataBytes.replace(" ", ""); // Remove spaces
         
+        // Get data bytes as integers
+        int A = 0, B = 0, C = 0, D = 0;
+        if (dataBytes.length() >= 2) A = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
+        if (dataBytes.length() >= 4) B = strtol(dataBytes.substring(2, 4).c_str(), NULL, 16);
+        if (dataBytes.length() >= 6) C = strtol(dataBytes.substring(4, 6).c_str(), NULL, 16);
+        if (dataBytes.length() >= 8) D = strtol(dataBytes.substring(6, 8).c_str(), NULL, 16);
+        
         switch(pid) {
-            case 0x0C: // Engine RPM
-                if (dataBytes.length() >= 4) {
-                    int A = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
-                    int B = strtol(dataBytes.substring(2, 4).c_str(), NULL, 16);
-                    value = ((A * 256) + B) / 4; // RPM formula
-                    return true;
-                }
-                break;
+            // Engine Management
+            case PID_ENGINE_LOAD:
+                value = (A * 100) / 255; // Calculated load value %
+                return true;
+            case PID_COOLANT_TEMP:
+                value = A - 40; // Engine coolant temperature °C
+                return true;
+            case PID_SHORT_TERM_FUEL_TRIM_1:
+            case PID_SHORT_TERM_FUEL_TRIM_2:
+                value = (A - 128) * 100 / 128; // Fuel trim %
+                return true;
+            case PID_LONG_TERM_FUEL_TRIM_1:
+            case PID_LONG_TERM_FUEL_TRIM_2:
+                value = (A - 128) * 100 / 128; // Fuel trim %
+                return true;
+            case PID_FUEL_PRESSURE:
+                value = A * 3; // Fuel pressure kPa
+                return true;
+            case PID_INTAKE_MAP:
+                value = A; // Intake manifold pressure kPa
+                return true;
+            case PID_RPM:
+                value = ((A * 256) + B) / 4; // Engine RPM
+                return true;
+            case PID_SPEED:
+                value = A; // Vehicle speed km/h
+                return true;
+            case PID_TIMING_ADVANCE:
+                value = (A - 128) / 2; // Timing advance degrees
+                return true;
+            case PID_INTAKE_TEMP:
+                value = A - 40; // Intake air temperature °C
+                return true;
+            case PID_MAF_FLOW:
+                value = ((A * 256) + B) / 100; // MAF air flow rate g/s
+                return true;
+            case PID_THROTTLE_POS:
+                value = (A * 100) / 255; // Throttle position %
+                return true;
                 
-            case 0x0D: // Vehicle speed
-                if (dataBytes.length() >= 2) {
-                    value = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
-                    return true;
-                }
-                break;
+            // Oxygen Sensors
+            case PID_O2_S1_VOLTAGE:
+            case PID_O2_S2_VOLTAGE:
+            case PID_O2_S3_VOLTAGE:
+            case PID_O2_S4_VOLTAGE:
+            case PID_O2_S5_VOLTAGE:
+            case PID_O2_S6_VOLTAGE:
+            case PID_O2_S7_VOLTAGE:
+            case PID_O2_S8_VOLTAGE:
+                value = A / 200; // O2 sensor voltage (0.0-1.275V)
+                return true;
                 
-            case 0x05: // Engine coolant temperature
-                if (dataBytes.length() >= 2) {
-                    int temp = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
-                    value = temp - 40; // Convert to Celsius
-                    return true;
-                }
-                break;
+            // System Information
+            case PID_OBD_STANDARDS:
+                value = A; // OBD standards compliance
+                return true;
+            case PID_O2_SENSORS_PRESENT:
+                value = A; // Oxygen sensors present bitmask
+                return true;
+            case PID_RUNTIME:
+                value = (A * 256) + B; // Runtime since engine start (seconds)
+                return true;
                 
-            case 0x46: // Ambient air temperature
-                if (dataBytes.length() >= 2) {
-                    int temp = strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
-                    value = temp - 40; // Convert to Celsius
-                    return true;
-                }
-                break;
+            // Emissions Control
+            case PID_DISTANCE_WITH_MIL:
+                value = (A * 256) + B; // Distance with MIL on (km)
+                return true;
+            case PID_FUEL_RAIL_PRESSURE:
+                value = ((A * 256) + B) * 10; // Fuel rail pressure kPa
+                return true;
+            case PID_COMMANDED_EGR:
+                value = (A * 100) / 255; // Commanded EGR %
+                return true;
+            case PID_EGR_ERROR:
+                value = (A - 128) * 100 / 128; // EGR error %
+                return true;
+            case PID_COMMANDED_EVAP_PURGE:
+                value = (A * 100) / 255; // Commanded evaporative purge %
+                return true;
+            case PID_FUEL_TANK_LEVEL:
+                value = (A * 100) / 255; // Fuel tank level %
+                return true;
+                
+            // Advanced Parameters
+            case PID_WARMUPS_SINCE_CODES_CLEARED:
+                value = A; // Number of warm-ups since codes cleared
+                return true;
+            case PID_DISTANCE_SINCE_CODES_CLEARED:
+                value = (A * 256) + B; // Distance since codes cleared (km)
+                return true;
+            case PID_ABSOLUTE_BAROMETRIC_PRESSURE:
+                value = A; // Absolute barometric pressure kPa
+                return true;
+            case PID_CATALYST_TEMP_B1S1:
+            case PID_CATALYST_TEMP_B2S1:
+            case PID_CATALYST_TEMP_B1S2:
+            case PID_CATALYST_TEMP_B2S2:
+                value = ((A * 256) + B) / 10 - 40; // Catalyst temperature °C
+                return true;
+            case PID_CONTROL_MODULE_VOLTAGE:
+                value = ((A * 256) + B) / 1000; // Control module voltage V
+                return true;
+            case PID_ABSOLUTE_LOAD_VALUE:
+                value = ((A * 256) + B) * 100 / 255; // Absolute load value %
+                return true;
+            case PID_FUEL_AIR_COMMANDED_EQUIV_RATIO:
+                value = ((A * 256) + B) / 32768; // Fuel-air equivalence ratio
+                return true;
+            case PID_RELATIVE_THROTTLE_POS:
+                value = (A * 100) / 255; // Relative throttle position %
+                return true;
+            case PID_AMBIENT_AIR_TEMP:
+                value = A - 40; // Ambient air temperature °C
+                return true;
+            case PID_ABSOLUTE_THROTTLE_POS_B:
+            case PID_ABSOLUTE_THROTTLE_POS_C:
+                value = (A * 100) / 255; // Absolute throttle position %
+                return true;
+            case PID_ACCELERATOR_PEDAL_POS_D:
+            case PID_ACCELERATOR_PEDAL_POS_E:
+            case PID_ACCELERATOR_PEDAL_POS_F:
+                value = (A * 100) / 255; // Accelerator pedal position %
+                return true;
+            case PID_COMMANDED_THROTTLE_ACTUATOR:
+                value = (A * 100) / 255; // Commanded throttle actuator %
+                return true;
+            case PID_TIME_WITH_MIL_ON:
+                value = (A * 256) + B; // Time with MIL on (minutes)
+                return true;
+            case PID_TIME_SINCE_CODES_CLEARED:
+                value = (A * 256) + B; // Time since codes cleared (minutes)
+                return true;
+                
+            // Fuel System
+            case PID_FUEL_TYPE:
+                value = A; // Fuel type code
+                return true;
+            case PID_ETHANOL_FUEL_PERCENT:
+                value = (A * 100) / 255; // Ethanol fuel percentage
+                return true;
+            case PID_ENGINE_OIL_TEMP:
+                value = A - 40; // Engine oil temperature °C
+                return true;
+            case PID_FUEL_INJECTION_TIMING:
+                value = ((A * 256) + B) / 128 - 210; // Fuel injection timing degrees
+                return true;
+            case PID_ENGINE_FUEL_RATE:
+                value = ((A * 256) + B) / 20; // Engine fuel rate L/h
+                return true;
+                
+            default:
+                lastError = "Unsupported PID 0x" + String(pid, HEX) + " for parsing";
+                lastErrorTime = millis();
+                return false;
         }
         
         lastError = "Failed to parse OBD data for PID 0x" + String(pid, HEX);
@@ -326,12 +562,69 @@ private:
     }
     
     bool readSimulatedPID(uint8_t pid, int& value) {
+        // Generate realistic simulated data for EPA-compliant vehicle
         switch(pid) {
-            case 0x0C: value = 1500 + random(-200, 200); return true;
-            case 0x0D: value = 60 + random(-10, 10); return true;
-            case 0x05: value = 85 + random(-5, 5); return true;
+            // Engine Management
+            case PID_ENGINE_LOAD: value = 25 + random(-10, 15); return true; // 15-40% load
+            case PID_COOLANT_TEMP: value = 85 + random(-5, 5); return true; // 80-90°C
+            case PID_SHORT_TERM_FUEL_TRIM_1: value = random(-8, 8); return true; // ±8%
+            case PID_LONG_TERM_FUEL_TRIM_1: value = random(-5, 5); return true; // ±5%
+            case PID_SHORT_TERM_FUEL_TRIM_2: value = random(-8, 8); return true;
+            case PID_LONG_TERM_FUEL_TRIM_2: value = random(-5, 5); return true;
+            case PID_FUEL_PRESSURE: value = 300 + random(-20, 20); return true; // ~300 kPa
+            case PID_INTAKE_MAP: value = 35 + random(-10, 15); return true; // 25-50 kPa
+            case PID_RPM: value = 1500 + random(-200, 500); return true; // 1300-2000 RPM
+            case PID_SPEED: value = 60 + random(-10, 20); return true; // 50-80 km/h
+            case PID_TIMING_ADVANCE: value = 15 + random(-5, 5); return true; // 10-20°
+            case PID_INTAKE_TEMP: value = 25 + random(-5, 15); return true; // 20-40°C
+            case PID_MAF_FLOW: value = 15 + random(-5, 10); return true; // 10-25 g/s
+            case PID_THROTTLE_POS: value = 20 + random(-5, 15); return true; // 15-35%
+            
+            // Oxygen Sensors (0.1-0.9V typical)
+            case PID_O2_S1_VOLTAGE: value = 450 + random(-100, 100); return true; // mV
+            case PID_O2_S2_VOLTAGE: value = 450 + random(-100, 100); return true;
+            case PID_O2_S3_VOLTAGE: value = 450 + random(-100, 100); return true;
+            case PID_O2_S4_VOLTAGE: value = 450 + random(-100, 100); return true;
+            
+            // System Information
+            case PID_OBD_STANDARDS: value = 7; return true; // OBD-II (CARB)
+            case PID_O2_SENSORS_PRESENT: value = 0x13; return true; // Bank 1 sensors 1&3
+            case PID_RUNTIME: value = 1800 + random(0, 600); return true; // 30-40 minutes
+            
+            // Emissions Control
+            case PID_DISTANCE_WITH_MIL: value = 0; return true; // No MIL
+            case PID_FUEL_RAIL_PRESSURE: value = 5500 + random(-200, 200); return true; // kPa
+            case PID_COMMANDED_EGR: value = 5 + random(-2, 5); return true; // 3-10%
+            case PID_EGR_ERROR: value = random(-3, 3); return true; // ±3%
+            case PID_COMMANDED_EVAP_PURGE: value = 2 + random(0, 8); return true; // 2-10%
+            case PID_FUEL_TANK_LEVEL: value = 75 + random(-10, 10); return true; // 65-85%
+            
+            // Advanced Parameters
+            case PID_WARMUPS_SINCE_CODES_CLEARED: value = 50 + random(0, 20); return true;
+            case PID_DISTANCE_SINCE_CODES_CLEARED: value = 1500 + random(0, 500); return true; // km
+            case PID_ABSOLUTE_BAROMETRIC_PRESSURE: value = 101 + random(-2, 2); return true; // kPa
+            case PID_CATALYST_TEMP_B1S1: value = 400 + random(-50, 100); return true; // °C
+            case PID_CATALYST_TEMP_B2S1: value = 400 + random(-50, 100); return true;
+            case PID_CONTROL_MODULE_VOLTAGE: value = 14 + random(-1, 1); return true; // V
+            case PID_ABSOLUTE_LOAD_VALUE: value = 30 + random(-10, 20); return true; // %
+            case PID_FUEL_AIR_COMMANDED_EQUIV_RATIO: value = 1000 + random(-50, 50); return true; // ratio*1000
+            case PID_RELATIVE_THROTTLE_POS: value = 20 + random(-5, 15); return true; // %
+            case PID_AMBIENT_AIR_TEMP: value = 22 + random(-5, 8); return true; // °C
+            case PID_ABSOLUTE_THROTTLE_POS_B: value = 20 + random(-5, 15); return true; // %
+            case PID_ACCELERATOR_PEDAL_POS_D: value = 25 + random(-5, 15); return true; // %
+            case PID_COMMANDED_THROTTLE_ACTUATOR: value = 20 + random(-5, 15); return true; // %
+            case PID_TIME_WITH_MIL_ON: value = 0; return true; // No MIL time
+            case PID_TIME_SINCE_CODES_CLEARED: value = 720 + random(0, 240); return true; // minutes
+            
+            // Fuel System
+            case PID_FUEL_TYPE: value = 1; return true; // Gasoline
+            case PID_ETHANOL_FUEL_PERCENT: value = 10 + random(-2, 5); return true; // E10 fuel
+            case PID_ENGINE_OIL_TEMP: value = 90 + random(-5, 10); return true; // °C
+            case PID_FUEL_INJECTION_TIMING: value = -2 + random(-2, 4); return true; // degrees
+            case PID_ENGINE_FUEL_RATE: value = 8 + random(-2, 4); return true; // L/h
+            
             default: 
-                lastError = "Unsupported PID 0x" + String(pid, HEX);
+                lastError = "Unsupported simulated PID 0x" + String(pid, HEX);
                 lastErrorTime = millis();
                 return false;
         }
@@ -536,15 +829,34 @@ private:
         if (millis() - lastOBDTime < OBD_INTERVAL) return;
         
         int value;
-        // Try OBD-II PIDs (engine data)
-        if (obd.readPID(0x0C, value)) store.log(0x0C, value);
-        if (obd.readPID(0x0D, value)) store.log(0x0D, value);
-        if (obd.readPID(0x05, value)) store.log(0x05, value);
+        // Core engine data (always try to read)
+        if (obd.readPID(PID_RPM, value)) store.log(PID_RPM, value);
+        if (obd.readPID(PID_SPEED, value)) store.log(PID_SPEED, value);
+        if (obd.readPID(PID_COOLANT_TEMP, value)) store.log(PID_COOLANT_TEMP, value);
+        if (obd.readPID(PID_ENGINE_LOAD, value)) store.log(PID_ENGINE_LOAD, value);
+        if (obd.readPID(PID_THROTTLE_POS, value)) store.log(PID_THROTTLE_POS, value);
         
-        // Read hardware sensor PIDs (always available)
-        if (obd.readPID(0x42, value)) store.log(0x42, value); // Battery voltage
-        if (obd.readPID(0x46, value)) store.log(0x46, value); // Ambient temperature
-        if (obd.readPID(0x43, value)) store.log(0x43, value); // Engine pressure
+        // Fuel system data
+        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) store.log(PID_SHORT_TERM_FUEL_TRIM_1, value);
+        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) store.log(PID_LONG_TERM_FUEL_TRIM_1, value);
+        if (obd.readPID(PID_FUEL_PRESSURE, value)) store.log(PID_FUEL_PRESSURE, value);
+        if (obd.readPID(PID_FUEL_TANK_LEVEL, value)) store.log(PID_FUEL_TANK_LEVEL, value);
+        
+        // Air intake system
+        if (obd.readPID(PID_INTAKE_MAP, value)) store.log(PID_INTAKE_MAP, value);
+        if (obd.readPID(PID_INTAKE_TEMP, value)) store.log(PID_INTAKE_TEMP, value);
+        if (obd.readPID(PID_MAF_FLOW, value)) store.log(PID_MAF_FLOW, value);
+        
+        // Emissions control
+        if (obd.readPID(PID_O2_S1_VOLTAGE, value)) store.log(PID_O2_S1_VOLTAGE, value);
+        if (obd.readPID(PID_O2_S2_VOLTAGE, value)) store.log(PID_O2_S2_VOLTAGE, value);
+        if (obd.readPID(PID_COMMANDED_EGR, value)) store.log(PID_COMMANDED_EGR, value);
+        if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) store.log(PID_CATALYST_TEMP_B1S1, value);
+        
+        // Hardware sensor PIDs (always available)
+        if (obd.readPID(PID_BATTERY_VOLTAGE, value)) store.log(PID_BATTERY_VOLTAGE, value);
+        if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) store.log(PID_AMBIENT_AIR_TEMP, value);
+        if (obd.readPID(PID_ENGINE_PRESSURE, value)) store.log(PID_ENGINE_PRESSURE, value);
         
         lastOBDTime = millis();
     }
@@ -658,15 +970,33 @@ private:
         }
         
         int value;
-        // OBD-II engine data (may not be available)
-        if (obd.readPID(0x0C, value)) data += "RPM:" + String(value) + ";";
-        if (obd.readPID(0x0D, value)) data += "SPD:" + String(value) + ";";
-        if (obd.readPID(0x05, value)) data += "COOLANT:" + String(value) + ";";
+        // Core engine data (primary display values)
+        if (obd.readPID(PID_RPM, value)) data += "RPM:" + String(value) + ";";
+        if (obd.readPID(PID_SPEED, value)) data += "SPD:" + String(value) + ";";
+        if (obd.readPID(PID_COOLANT_TEMP, value)) data += "COOLANT:" + String(value) + ";";
+        if (obd.readPID(PID_ENGINE_LOAD, value)) data += "LOAD:" + String(value) + ";";
+        if (obd.readPID(PID_THROTTLE_POS, value)) data += "THROTTLE:" + String(value) + ";";
+        
+        // Fuel system data
+        if (obd.readPID(PID_FUEL_TANK_LEVEL, value)) data += "FUEL_LEVEL:" + String(value) + ";";
+        if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) data += "STFT1:" + String(value) + ";";
+        if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) data += "LTFT1:" + String(value) + ";";
+        
+        // Air intake system
+        if (obd.readPID(PID_INTAKE_MAP, value)) data += "MAP:" + String(value) + ";";
+        if (obd.readPID(PID_INTAKE_TEMP, value)) data += "IAT:" + String(value) + ";";
+        if (obd.readPID(PID_MAF_FLOW, value)) data += "MAF:" + String(value) + ";";
+        
+        // Emissions data
+        if (obd.readPID(PID_O2_S1_VOLTAGE, value)) data += "O2S1:" + String(value) + ";";
+        if (obd.readPID(PID_O2_S2_VOLTAGE, value)) data += "O2S2:" + String(value) + ";";
+        if (obd.readPID(PID_COMMANDED_EGR, value)) data += "EGR:" + String(value) + ";";
+        if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) data += "CAT_TEMP:" + String(value) + ";";
         
         // Hardware sensor data (should always be available)
-        if (obd.readPID(0x42, value)) data += "BATTERY:" + String(value) + ";";
-        if (obd.readPID(0x46, value)) data += "AMBIENT:" + String(value) + ";";
-        if (obd.readPID(0x43, value)) data += "PRESSURE:" + String(value) + ";";
+        if (obd.readPID(PID_BATTERY_VOLTAGE, value)) data += "BATTERY:" + String(value) + ";";
+        if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) data += "AMBIENT:" + String(value) + ";";
+        if (obd.readPID(PID_ENGINE_PRESSURE, value)) data += "PRESSURE:" + String(value) + ";";
         
         float lat, lng;
         uint8_t sat;
