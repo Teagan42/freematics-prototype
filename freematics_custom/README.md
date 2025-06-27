@@ -130,6 +130,14 @@ CMD:PING       - Test connection
 - **Web Bluetooth Issues**: Requires HTTPS (use localhost for testing)
 - **No Data**: Enable simulation mode via dashboard or BLE commands
 
+### ⚠️ Legacy Hardware Issues
+This project targets **older ESP32 boards** with **custom implementations**:
+- **Function not found errors**: Newer ESP32 functions may not exist on older boards
+- **Sensor reading failures**: Uses custom ADC/sensor implementations, not standard libraries
+- **Temperature reading issues**: Check `readAmbientTemperature()` custom implementation
+- **BLE connection problems**: Uses basic ESP32 BLE, not newer advanced features
+- **When modifying code**: Follow existing custom patterns rather than using modern ESP32 APIs
+
 ## Customization
 
 You can extend this sketch by:

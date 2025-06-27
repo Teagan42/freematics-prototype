@@ -182,3 +182,31 @@ Key settings in `config.h`:
 - **Simulation Support**: Built-in test data generation
 - **Protocol Versioning**: API compatibility checking
 - **Web Integration**: Designed for modern web dashboard interface
+
+## ⚠️ CRITICAL: Legacy Hardware Compatibility Notes
+
+**This project targets OLDER ESP32 boards (pre-ESP32-S3/C3) and uses CUSTOM IMPLEMENTATIONS.**
+
+### Common LLM-Generated Code Issues:
+1. **Newer ESP32 Functions**: Modern ESP32 functions may not exist on older boards
+2. **Library Assumptions**: Standard Arduino/ESP32 libraries may behave differently
+3. **Hardware Abstractions**: We implement custom sensor reading instead of using newer APIs
+4. **Temperature Sensors**: Uses custom `temperatureRead()` fallback, not newer temp sensor APIs
+5. **ADC Reading**: Direct `analogRead()` calls instead of newer ADC APIs
+6. **BLE Implementation**: Uses basic ESP32 BLE, not newer BLE mesh or advanced features
+
+### Debugging Strategy for "Not Working" Issues:
+1. **Check if function exists**: If code fails to compile, the function likely doesn't exist on older ESP32
+2. **Look for custom implementations**: Search codebase for custom versions (e.g., `readBatteryVoltage()`, `readAmbientTemperature()`)
+3. **Verify hardware assumptions**: Older boards have different pin mappings and capabilities
+4. **Test with simulation first**: Use simulation mode to isolate hardware vs software issues
+5. **Check ESP32 core version**: This targets ESP32 Arduino Core 3.2.0+, not latest versions
+
+### Custom Implementation Examples:
+- **Battery Voltage**: Custom ADC reading with voltage divider calculation
+- **Temperature**: Fallback chain from OBD → external sensor → ESP32 internal temp
+- **OBD Communication**: Custom Serial2 implementation, not CAN bus libraries
+- **GPS**: Simulated data generation, not real GPS module integration
+- **Storage**: Custom circular buffer, not SPIFFS/LittleFS
+
+**When adding new features, always check existing patterns and implement similar custom solutions rather than assuming modern ESP32 APIs are available.**
