@@ -150,7 +150,7 @@ public:
         handleLedBlink();
         
         // Only process data if BLE client is connected
-        if (bluetoothClientConnected) {
+        if (bleClientConnected) {
             // Process OBD data
             if (m_state & STATE_OBD_READY) {
                 processOBD();
