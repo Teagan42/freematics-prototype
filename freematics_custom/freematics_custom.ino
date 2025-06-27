@@ -4,7 +4,10 @@
 * Compatible with ESP32 Arduino Core 3.2.0+
 *************************************************************************/
 
-#include <BluetoothSerial.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 #include "config.h"
 #include "telestore.h"
 
@@ -17,21 +20,28 @@
 #define STATE_CONNECTED 0x40
 #define STATE_BLE_READY 0x80
 
-// Expected Bluetooth client addresses
-const String EXPECTED_BT_ADDRESSES[] = {
-    "A4:83:E7:CC:52:C3",
-    "24:95:2F:D5:59:1B"
-};
-const int NUM_EXPECTED_ADDRESSES = 2;
-
-// Bluetooth Serial instance
-BluetoothSerial SerialBT;
-bool bluetoothClientConnected = false;
+// BLE Server and Characteristic
+BLEServer* pServer = NULL;
+BLECharacteristic* pCharacteristic = NULL;
+bool bleClientConnected = false;
 unsigned long lastLedBlink = 0;
 bool ledState = false;
 
-// Forward declaration of bluetooth callback
-void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param);
+// BLE Server Callbacks
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+        bleClientConnected = true;
+        Serial.println("BLE client connected");
+        Serial.println("Starting data collection...");
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+        bleClientConnected = false;
+        Serial.println("BLE client disconnected");
+        Serial.println("Stopping data collection, waiting for BLE client...");
+        BLEDevice::startAdvertising();
+    }
+};
 
 // Minimal OBD simulation
 class SimpleOBD {
@@ -70,15 +80,32 @@ public:
         pinMode(PIN_LED, OUTPUT);
         digitalWrite(PIN_LED, LOW);
         
-        // Initialize Bluetooth
-        Serial.print("Bluetooth...");
-        if (SerialBT.begin(BLE_DEVICE_NAME)) {
-            Serial.println("OK");
-            m_state |= STATE_BLE_READY;
-            SerialBT.register_callback(bluetoothCallback);
-        } else {
-            Serial.println("NO");
-        }
+        // Initialize BLE
+        Serial.print("BLE...");
+        BLEDevice::init(BLE_DEVICE_NAME);
+        pServer = BLEDevice::createServer();
+        pServer->setCallbacks(new MyServerCallbacks());
+
+        BLEService *pService = pServer->createService(BLE_SERVICE_UUID);
+
+        pCharacteristic = pService->createCharacteristic(
+                            BLE_SERVICE_UUID,
+                            BLECharacteristic::PROPERTY_READ |
+                            BLECharacteristic::PROPERTY_WRITE |
+                            BLECharacteristic::PROPERTY_NOTIFY
+                          );
+
+        pCharacteristic->addDescriptor(new BLE2902());
+
+        pService->start();
+        BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+        pAdvertising->addServiceUUID(BLE_SERVICE_UUID);
+        pAdvertising->setScanResponse(false);
+        pAdvertising->setMinPreferred(0x0);
+        BLEDevice::startAdvertising();
+        
+        Serial.println("OK");
+        m_state |= STATE_BLE_READY;
         
         // Initialize OBD
         Serial.print("OBD...");
@@ -152,7 +179,7 @@ public:
 private:
     void handleLedBlink()
     {
-        if (!bluetoothClientConnected) {
+        if (!bleClientConnected) {
             // Blink LED every 500ms when no client connected
             if (millis() - lastLedBlink > 500) {
                 ledState = !ledState;
@@ -206,10 +233,11 @@ private:
         static uint32_t lastBLETime = 0;
         if (millis() - lastBLETime < BLE_INTERVAL) return;
         
-        if (bluetoothClientConnected && (m_state & STATE_BLE_READY)) {
+        if (bleClientConnected && (m_state & STATE_BLE_READY)) {
             String bleData = formatDataForBLE();
             if (bleData.length() > 0) {
-                SerialBT.println(bleData);
+                pCharacteristic->setValue(bleData.c_str());
+                pCharacteristic->notify();
             }
         }
         
@@ -239,39 +267,6 @@ private:
     SimpleGPS gps;
 };
 
-// Bluetooth callback function
-void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
-    if (event == ESP_SPP_SRV_OPEN_EVT) {
-        char clientAddress[18];
-        sprintf(clientAddress, "%02X:%02X:%02X:%02X:%02X:%02X",
-                param->srv_open.rem_bda[0], param->srv_open.rem_bda[1],
-                param->srv_open.rem_bda[2], param->srv_open.rem_bda[3],
-                param->srv_open.rem_bda[4], param->srv_open.rem_bda[5]);
-        
-        // Check if client address is in expected list
-        bool isExpectedClient = false;
-        for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
-            if (EXPECTED_BT_ADDRESSES[i].equals(String(clientAddress))) {
-                isExpectedClient = true;
-                break;
-            }
-        }
-        
-        if (isExpectedClient) {
-            bluetoothClientConnected = true;
-            Serial.println("BT connected (authorized): " + String(clientAddress));
-            Serial.println("Starting data collection...");
-        } else {
-            Serial.println("BT connection rejected (unauthorized): " + String(clientAddress));
-            // Disconnect unauthorized client
-            SerialBT.disconnect();
-        }
-    } else if (event == ESP_SPP_CLOSE_EVT) {
-        bluetoothClientConnected = false;
-        Serial.println("BT disconnected");
-        Serial.println("Stopping data collection, waiting for BLE client...");
-    }
-}
 
 CustomFreematicsLogger logger;
 
@@ -293,7 +288,7 @@ void setup()
 
 void loop()
 {
-    if (bluetoothClientConnected) {
+    if (bleClientConnected) {
         logger.process();
     } else {
         // Just handle LED blinking while waiting for connection
