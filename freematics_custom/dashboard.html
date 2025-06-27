@@ -409,7 +409,23 @@
                 lastError: '',
                 systemStatus: {},
                 simulationRunning: false,
-                apiVersion: null
+                apiVersion: null,
+                // Additional engine parameters
+                engineLoad: 0,
+                throttlePos: 0,
+                intakeTemp: 0,
+                oilTemp: 0,
+                exhaustTemp: 0,
+                fuelPressure: 0,
+                fuelLevel: 0,
+                fuelTrimShort: 0,
+                fuelTrimLong: 0,
+                fuelRate: 0,
+                mafFlow: 0,
+                o2Voltage: 0,
+                catalystTemp: 0,
+                boostPressure: 0,
+                turboRpm: 0
             });
             
             // Expected API version - update this when making breaking changes
@@ -419,17 +435,23 @@
 
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
+            const tempChartRef = useRef(null);
+            const tempChartInstance = useRef(null);
+            const percentChartRef = useRef(null);
+            const percentChartInstance = useRef(null);
+            const fuelChartRef = useRef(null);
+            const fuelChartInstance = useRef(null);
+            const [activeTab, setActiveTab] = useState('overview');
 
-            // Initialize chart
+            // Initialize charts
             useEffect(() => {
+                const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const textColor = isDarkMode ? '#e9ecef' : '#666';
+                const gridColor = isDarkMode ? '#495057' : '#e0e0e0';
+
+                // Main Performance Chart
                 if (chartRef.current && !chartInstance.current) {
                     const ctx = chartRef.current.getContext('2d');
-                    
-                    // Detect dark mode
-                    const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                    const textColor = isDarkMode ? '#e9ecef' : '#666';
-                    const gridColor = isDarkMode ? '#495057' : '#e0e0e0';
-                    
                     chartInstance.current = new Chart(ctx, {
                         type: 'line',
                         data: {
@@ -458,87 +480,315 @@
                                 x: {
                                     type: 'linear',
                                     position: 'bottom',
-                                    title: {
-                                        display: true,
-                                        text: 'Time (seconds)',
-                                        color: textColor
-                                    },
-                                    ticks: {
-                                        color: textColor
-                                    },
-                                    grid: {
-                                        color: gridColor
-                                    }
+                                    title: { display: true, text: 'Time (seconds)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
                                 },
                                 y: {
                                     type: 'linear',
                                     display: true,
                                     position: 'left',
-                                    title: {
-                                        display: true,
-                                        text: 'RPM',
-                                        color: textColor
-                                    },
-                                    ticks: {
-                                        color: textColor
-                                    },
-                                    grid: {
-                                        color: gridColor
-                                    }
+                                    title: { display: true, text: 'RPM', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
                                 },
                                 y1: {
                                     type: 'linear',
                                     display: true,
                                     position: 'right',
-                                    title: {
-                                        display: true,
-                                        text: 'Speed (mph)',
-                                        color: textColor
-                                    },
-                                    ticks: {
-                                        color: textColor
-                                    },
-                                    grid: {
-                                        drawOnChartArea: false,
-                                        color: gridColor
-                                    },
+                                    title: { display: true, text: 'Speed (mph)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { drawOnChartArea: false, color: gridColor }
                                 }
                             },
                             plugins: {
-                                title: {
-                                    display: true,
-                                    text: 'Vehicle Data Over Time',
-                                    color: textColor
+                                title: { display: true, text: 'Engine Performance', color: textColor },
+                                legend: { labels: { color: textColor } }
+                            }
+                        }
+                    });
+                }
+
+                // Temperature Chart
+                if (tempChartRef.current && !tempChartInstance.current) {
+                    const ctx = tempChartRef.current.getContext('2d');
+                    tempChartInstance.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Coolant Temp (°F)',
+                                    data: [],
+                                    borderColor: '#dc3545',
+                                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                    yAxisID: 'y'
                                 },
-                                legend: {
-                                    labels: {
-                                        color: textColor
-                                    }
+                                {
+                                    label: 'Intake Temp (°F)',
+                                    data: [],
+                                    borderColor: '#17a2b8',
+                                    backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Oil Temp (°F)',
+                                    data: [],
+                                    borderColor: '#fd7e14',
+                                    backgroundColor: 'rgba(253, 126, 20, 0.1)',
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Exhaust Temp (°F)',
+                                    data: [],
+                                    borderColor: '#6f42c1',
+                                    backgroundColor: 'rgba(111, 66, 193, 0.1)',
+                                    yAxisID: 'y'
                                 }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    position: 'bottom',
+                                    title: { display: true, text: 'Time (seconds)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
+                                },
+                                y: {
+                                    type: 'linear',
+                                    display: true,
+                                    title: { display: true, text: 'Temperature (°F)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
+                                }
+                            },
+                            plugins: {
+                                title: { display: true, text: 'Temperature Monitoring', color: textColor },
+                                legend: { labels: { color: textColor } }
+                            }
+                        }
+                    });
+                }
+
+                // Percentage Chart
+                if (percentChartRef.current && !percentChartInstance.current) {
+                    const ctx = percentChartRef.current.getContext('2d');
+                    percentChartInstance.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Engine Load (%)',
+                                    data: [],
+                                    borderColor: '#28a745',
+                                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Throttle Position (%)',
+                                    data: [],
+                                    borderColor: '#007bff',
+                                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Fuel Level (%)',
+                                    data: [],
+                                    borderColor: '#ffc107',
+                                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                                    yAxisID: 'y'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    position: 'bottom',
+                                    title: { display: true, text: 'Time (seconds)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
+                                },
+                                y: {
+                                    type: 'linear',
+                                    display: true,
+                                    min: 0,
+                                    max: 100,
+                                    title: { display: true, text: 'Percentage (%)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
+                                }
+                            },
+                            plugins: {
+                                title: { display: true, text: 'System Load & Levels', color: textColor },
+                                legend: { labels: { color: textColor } }
+                            }
+                        }
+                    });
+                }
+
+                // Fuel System Chart
+                if (fuelChartRef.current && !fuelChartInstance.current) {
+                    const ctx = fuelChartRef.current.getContext('2d');
+                    fuelChartInstance.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: [],
+                            datasets: [
+                                {
+                                    label: 'Fuel Pressure (psi)',
+                                    data: [],
+                                    borderColor: '#dc3545',
+                                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Fuel Rate (L/h)',
+                                    data: [],
+                                    borderColor: '#28a745',
+                                    backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                                    yAxisID: 'y1'
+                                },
+                                {
+                                    label: 'Short Term Trim (%)',
+                                    data: [],
+                                    borderColor: '#007bff',
+                                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                                    yAxisID: 'y2'
+                                },
+                                {
+                                    label: 'Long Term Trim (%)',
+                                    data: [],
+                                    borderColor: '#6f42c1',
+                                    backgroundColor: 'rgba(111, 66, 193, 0.1)',
+                                    yAxisID: 'y2'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                x: {
+                                    type: 'linear',
+                                    position: 'bottom',
+                                    title: { display: true, text: 'Time (seconds)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
+                                },
+                                y: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'left',
+                                    title: { display: true, text: 'Pressure (psi)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { color: gridColor }
+                                },
+                                y1: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'right',
+                                    title: { display: true, text: 'Flow Rate (L/h)', color: textColor },
+                                    ticks: { color: textColor },
+                                    grid: { drawOnChartArea: false, color: gridColor }
+                                },
+                                y2: {
+                                    type: 'linear',
+                                    display: false,
+                                    min: -25,
+                                    max: 25,
+                                    title: { display: true, text: 'Trim (%)', color: textColor }
+                                }
+                            },
+                            plugins: {
+                                title: { display: true, text: 'Fuel System Analysis', color: textColor },
+                                legend: { labels: { color: textColor } }
                             }
                         }
                     });
                 }
             }, []);
 
-            // Update chart when data changes
+            // Update charts when data changes
             useEffect(() => {
-                if (chartInstance.current && dataHistory.length > 0) {
-                    const chart = chartInstance.current;
+                if (dataHistory.length > 0) {
                     const startTime = dataHistory[0].timestamp;
+                    const timeLabels = dataHistory.map(d => ((d.timestamp - startTime) / 1000).toFixed(1));
 
-                    chart.data.labels = dataHistory.map(d => ((d.timestamp - startTime) / 1000).toFixed(1));
-                    chart.data.datasets[0].data = dataHistory.map(d => d.rpm);
-                    chart.data.datasets[1].data = dataHistory.map(d => d.speed);
+                    // Update main performance chart
+                    if (chartInstance.current) {
+                        const chart = chartInstance.current;
+                        chart.data.labels = timeLabels;
+                        chart.data.datasets[0].data = dataHistory.map(d => d.rpm);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.speed);
 
-                    // Keep only last 50 data points for performance
-                    if (chart.data.labels.length > 50) {
-                        chart.data.labels = chart.data.labels.slice(-50);
-                        chart.data.datasets[0].data = chart.data.datasets[0].data.slice(-50);
-                        chart.data.datasets[1].data = chart.data.datasets[1].data.slice(-50);
+                        if (chart.data.labels.length > 50) {
+                            chart.data.labels = chart.data.labels.slice(-50);
+                            chart.data.datasets[0].data = chart.data.datasets[0].data.slice(-50);
+                            chart.data.datasets[1].data = chart.data.datasets[1].data.slice(-50);
+                        }
+                        chart.update('none');
                     }
 
-                    chart.update('none');
+                    // Update temperature chart
+                    if (tempChartInstance.current) {
+                        const chart = tempChartInstance.current;
+                        chart.data.labels = timeLabels;
+                        chart.data.datasets[0].data = dataHistory.map(d => d.coolant);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.intakeTemp);
+                        chart.data.datasets[2].data = dataHistory.map(d => d.oilTemp);
+                        chart.data.datasets[3].data = dataHistory.map(d => d.exhaustTemp);
+
+                        if (chart.data.labels.length > 50) {
+                            chart.data.labels = chart.data.labels.slice(-50);
+                            chart.data.datasets.forEach(dataset => {
+                                dataset.data = dataset.data.slice(-50);
+                            });
+                        }
+                        chart.update('none');
+                    }
+
+                    // Update percentage chart
+                    if (percentChartInstance.current) {
+                        const chart = percentChartInstance.current;
+                        chart.data.labels = timeLabels;
+                        chart.data.datasets[0].data = dataHistory.map(d => d.engineLoad);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.throttlePos);
+                        chart.data.datasets[2].data = dataHistory.map(d => d.fuelLevel);
+
+                        if (chart.data.labels.length > 50) {
+                            chart.data.labels = chart.data.labels.slice(-50);
+                            chart.data.datasets.forEach(dataset => {
+                                dataset.data = dataset.data.slice(-50);
+                            });
+                        }
+                        chart.update('none');
+                    }
+
+                    // Update fuel chart
+                    if (fuelChartInstance.current) {
+                        const chart = fuelChartInstance.current;
+                        chart.data.labels = timeLabels;
+                        chart.data.datasets[0].data = dataHistory.map(d => d.fuelPressure);
+                        chart.data.datasets[1].data = dataHistory.map(d => d.fuelRate);
+                        chart.data.datasets[2].data = dataHistory.map(d => d.fuelTrimShort);
+                        chart.data.datasets[3].data = dataHistory.map(d => d.fuelTrimLong);
+
+                        if (chart.data.labels.length > 50) {
+                            chart.data.labels = chart.data.labels.slice(-50);
+                            chart.data.datasets.forEach(dataset => {
+                                dataset.data = dataset.data.slice(-50);
+                            });
+                        }
+                        chart.update('none');
+                    }
                 }
             }, [dataHistory]);
 
@@ -859,6 +1109,66 @@
                                         dataUpdates.ambientTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
                                         hasSensorData = true;
                                         break;
+                                    case 'ENGINE_LOAD':
+                                        dataUpdates.engineLoad = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'THROTTLE_POS':
+                                        dataUpdates.throttlePos = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'INTAKE_TEMP':
+                                        dataUpdates.intakeTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
+                                        break;
+                                    case 'OIL_TEMP':
+                                        dataUpdates.oilTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
+                                        break;
+                                    case 'EXHAUST_TEMP':
+                                        dataUpdates.exhaustTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
+                                        break;
+                                    case 'FUEL_PRESSURE':
+                                        dataUpdates.fuelPressure = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'FUEL_LEVEL':
+                                        dataUpdates.fuelLevel = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'FUEL_TRIM_SHORT':
+                                        dataUpdates.fuelTrimShort = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'FUEL_TRIM_LONG':
+                                        dataUpdates.fuelTrimLong = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'FUEL_RATE':
+                                        dataUpdates.fuelRate = (parseInt(value) || 0) / 100; // Convert from cL/h to L/h
+                                        hasSensorData = true;
+                                        break;
+                                    case 'MAF_FLOW':
+                                        dataUpdates.mafFlow = (parseInt(value) || 0) / 100; // Convert from cg/s to g/s
+                                        hasSensorData = true;
+                                        break;
+                                    case 'O2_VOLTAGE':
+                                        dataUpdates.o2Voltage = (parseInt(value) || 0) / 1000; // Convert from mV to V
+                                        hasSensorData = true;
+                                        break;
+                                    case 'CATALYST_TEMP':
+                                        dataUpdates.catalystTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
+                                        break;
+                                    case 'BOOST_PRESSURE':
+                                        dataUpdates.boostPressure = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'TURBO_RPM':
+                                        dataUpdates.turboRpm = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
                                     case 'GPS':
                                         const coords = value.split(',');
                                         if (coords.length >= 2) {
@@ -947,7 +1257,22 @@
                                     coolant: dataUpdates.coolant !== undefined ? dataUpdates.coolant : data.coolant,
                                     enginePressure: dataUpdates.enginePressure !== undefined ? dataUpdates.enginePressure : data.enginePressure,
                                     batteryVoltage: dataUpdates.batteryVoltage !== undefined ? dataUpdates.batteryVoltage : data.batteryVoltage,
-                                    ambientTemp: dataUpdates.ambientTemp !== undefined ? dataUpdates.ambientTemp : data.ambientTemp
+                                    ambientTemp: dataUpdates.ambientTemp !== undefined ? dataUpdates.ambientTemp : data.ambientTemp,
+                                    engineLoad: dataUpdates.engineLoad !== undefined ? dataUpdates.engineLoad : data.engineLoad,
+                                    throttlePos: dataUpdates.throttlePos !== undefined ? dataUpdates.throttlePos : data.throttlePos,
+                                    intakeTemp: dataUpdates.intakeTemp !== undefined ? dataUpdates.intakeTemp : data.intakeTemp,
+                                    oilTemp: dataUpdates.oilTemp !== undefined ? dataUpdates.oilTemp : data.oilTemp,
+                                    exhaustTemp: dataUpdates.exhaustTemp !== undefined ? dataUpdates.exhaustTemp : data.exhaustTemp,
+                                    fuelPressure: dataUpdates.fuelPressure !== undefined ? dataUpdates.fuelPressure : data.fuelPressure,
+                                    fuelLevel: dataUpdates.fuelLevel !== undefined ? dataUpdates.fuelLevel : data.fuelLevel,
+                                    fuelTrimShort: dataUpdates.fuelTrimShort !== undefined ? dataUpdates.fuelTrimShort : data.fuelTrimShort,
+                                    fuelTrimLong: dataUpdates.fuelTrimLong !== undefined ? dataUpdates.fuelTrimLong : data.fuelTrimLong,
+                                    fuelRate: dataUpdates.fuelRate !== undefined ? dataUpdates.fuelRate : data.fuelRate,
+                                    mafFlow: dataUpdates.mafFlow !== undefined ? dataUpdates.mafFlow : data.mafFlow,
+                                    o2Voltage: dataUpdates.o2Voltage !== undefined ? dataUpdates.o2Voltage : data.o2Voltage,
+                                    catalystTemp: dataUpdates.catalystTemp !== undefined ? dataUpdates.catalystTemp : data.catalystTemp,
+                                    boostPressure: dataUpdates.boostPressure !== undefined ? dataUpdates.boostPressure : data.boostPressure,
+                                    turboRpm: dataUpdates.turboRpm !== undefined ? dataUpdates.turboRpm : data.turboRpm
                                 }].slice(-100)); // Keep last 100 entries
                             }
                         }
@@ -1038,6 +1363,29 @@
                     case 'ambient':
                         if (value > 100) return 'danger';
                         if (value > 85) return 'warning';
+                        return 'normal';
+                    case 'engineLoad':
+                        if (value > 90) return 'danger';
+                        if (value > 75) return 'warning';
+                        return 'normal';
+                    case 'throttle':
+                        if (value > 90) return 'warning';
+                        return 'normal';
+                    case 'fuelLevel':
+                        if (value < 15) return 'danger';
+                        if (value < 25) return 'warning';
+                        return 'normal';
+                    case 'fuelTrim':
+                        if (Math.abs(value) > 15) return 'danger';
+                        if (Math.abs(value) > 10) return 'warning';
+                        return 'normal';
+                    case 'oilTemp':
+                        if (value > 250) return 'danger';
+                        if (value > 220) return 'warning';
+                        return 'normal';
+                    case 'exhaustTemp':
+                        if (value > 1200) return 'danger';
+                        if (value > 1000) return 'warning';
                         return 'normal';
                     default:
                         return 'info';
@@ -1194,9 +1542,203 @@
                         </div>
                     </div>
 
-                    <div className="chart-container">
-                        <div className="chart-wrapper">
-                            <canvas ref={chartRef}></canvas>
+                    <div className="tabs">
+                        <div 
+                            className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('overview')}
+                        >
+                            Overview
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'performance' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('performance')}
+                        >
+                            Performance
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'temperatures' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('temperatures')}
+                        >
+                            Temperatures
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'percentages' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('percentages')}
+                        >
+                            Load & Levels
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'fuel' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('fuel')}
+                        >
+                            Fuel System
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'diagnostics' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('diagnostics')}
+                        >
+                            Diagnostics
+                        </div>
+                    </div>
+
+                    <div className="tab-content">
+                        <div className={`tab-panel ${activeTab === 'overview' ? 'active' : ''}`}>
+                            <div className="compact-metrics">
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.engineLoad, 'engineLoad')}`}>
+                                        {data.engineLoad}%
+                                    </div>
+                                    <div className="compact-label">Engine Load</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.throttlePos, 'throttle')}`}>
+                                        {data.throttlePos}%
+                                    </div>
+                                    <div className="compact-label">Throttle Position</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelLevel, 'fuelLevel')}`}>
+                                        {data.fuelLevel}%
+                                    </div>
+                                    <div className="compact-label">Fuel Level</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.intakeTemp, 'ambient')}`}>
+                                        {data.intakeTemp}°F
+                                    </div>
+                                    <div className="compact-label">Intake Temp</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.oilTemp, 'oilTemp')}`}>
+                                        {data.oilTemp}°F
+                                    </div>
+                                    <div className="compact-label">Oil Temp</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelPressure, 'pressure')}`}>
+                                        {data.fuelPressure} psi
+                                    </div>
+                                    <div className="compact-label">Fuel Pressure</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelTrimShort, 'fuelTrim')}`}>
+                                        {data.fuelTrimShort > 0 ? '+' : ''}{data.fuelTrimShort}%
+                                    </div>
+                                    <div className="compact-label">Short Fuel Trim</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelTrimLong, 'fuelTrim')}`}>
+                                        {data.fuelTrimLong > 0 ? '+' : ''}{data.fuelTrimLong}%
+                                    </div>
+                                    <div className="compact-label">Long Fuel Trim</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'performance' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={chartRef}></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'temperatures' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={tempChartRef}></canvas>
+                                </div>
+                            </div>
+                            <div className="compact-metrics">
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.catalystTemp, 'exhaustTemp')}`}>
+                                        {data.catalystTemp}°F
+                                    </div>
+                                    <div className="compact-label">Catalyst Temp</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.exhaustTemp, 'exhaustTemp')}`}>
+                                        {data.exhaustTemp}°F
+                                    </div>
+                                    <div className="compact-label">Exhaust Temp</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'percentages' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={percentChartRef}></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'fuel' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={fuelChartRef}></canvas>
+                                </div>
+                            </div>
+                            <div className="compact-metrics">
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.fuelRate.toFixed(2)} L/h
+                                    </div>
+                                    <div className="compact-label">Fuel Rate</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.mafFlow.toFixed(2)} g/s
+                                    </div>
+                                    <div className="compact-label">MAF Flow</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.o2Voltage.toFixed(3)} V
+                                    </div>
+                                    <div className="compact-label">O2 Sensor</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'diagnostics' ? 'active' : ''}`}>
+                            <div className="compact-metrics">
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.boostPressure} psi
+                                    </div>
+                                    <div className="compact-label">Boost Pressure</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.turboRpm.toLocaleString()} RPM
+                                    </div>
+                                    <div className="compact-label">Turbo RPM</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.batteryVoltage, 'battery')}`}>
+                                        {data.batteryVoltage.toFixed(1)} V
+                                    </div>
+                                    <div className="compact-label">Battery Voltage</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.enginePressure, 'pressure')}`}>
+                                        {data.enginePressure} psi
+                                    </div>
+                                    <div className="compact-label">Engine Pressure</div>
+                                </div>
+                            </div>
+                            <div style={{marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px'}}>
+                                <h4>System Health Summary</h4>
+                                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '0.9em'}}>
+                                    <div><strong>Engine Load:</strong> {data.engineLoad}% {data.engineLoad > 85 ? '⚠️' : '✅'}</div>
+                                    <div><strong>Coolant Temp:</strong> {data.coolant}°F {data.coolant > 220 ? '🔥' : '✅'}</div>
+                                    <div><strong>Oil Temp:</strong> {data.oilTemp}°F {data.oilTemp > 250 ? '🔥' : '✅'}</div>
+                                    <div><strong>Fuel Level:</strong> {data.fuelLevel}% {data.fuelLevel < 25 ? '⛽' : '✅'}</div>
+                                    <div><strong>Battery:</strong> {data.batteryVoltage.toFixed(1)}V {data.batteryVoltage < 12.0 ? '🔋' : '✅'}</div>
+                                    <div><strong>Fuel Trim:</strong> {Math.abs(data.fuelTrimShort) > 10 ? '⚠️' : '✅'} ST: {data.fuelTrimShort}%</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
