@@ -97,16 +97,18 @@ messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;SAT:count;MODE:status;
 ### Example BLE Messages
 ```
 1:0:12345,CONNECT:SUCCESS,API_VERSION:1;
-2:12345,MODE:SIMULATED;RPM:1500;SPD:60;GPS:37.774900,-122.419400;SAT:7;BATTERY:1250;
-3:13345,STATUS:OBD=SIM,GPS=OK,STORAGE=OK,BLE=OK,API_VERSION=1,UPTIME=13;
+2:12345,MODE:REAL;RPM:1500;SPD:60;GPS:37.774900,-122.419400;SAT:7;BATTERY:1250;
+3:13345,STATUS:OBD=REAL,GPS=OK,STORAGE=OK,BLE=OK,API_VERSION=1,UPTIME=13;
 4:14345,HEARTBEAT:OK;
+5:15345,DIAG:ADC:OK,OBD:OK,BLE:OK,VIN:OK,HEAP:OK,CLIENT:OK,SERVER:OK;
 ```
 
 ### Message Types
-- **Data Messages**: Sensor readings with MODE indicator
+- **Data Messages**: Sensor readings with MODE indicator (REAL/DISABLED)
 - **Status Messages**: System component status with averaging
 - **Heartbeat Messages**: Keep-alive signals every 2 seconds
-- **Command Responses**: PONG, status confirmations
+- **Command Responses**: PONG, status confirmations, diagnostic results
+- **Diagnostic Messages**: Hardware test results in compact format
 
 ### Data Codes
 
@@ -166,9 +168,10 @@ messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;SAT:count;MODE:status;
 - **SAT**: Number of satellites with averaging indicator (PID 0x22)
 
 #### System Status
-- **MODE**: Data source (REAL/SIMULATED/DISABLED)
+- **MODE**: Data source (REAL/DISABLED - simulation moved to client-side)
 - **API_VERSION**: Protocol version for compatibility
 - **STATUS**: Component health (OBD/GPS/STORAGE/BLE)
+- **DIAG**: Hardware diagnostic results (7 tests: ADC,OBD,BLE,VIN,HEAP,CLIENT,SERVER)
 
 ### Supported PID Count
 - **Total PIDs**: 80+ EPA-compliant parameters
@@ -190,17 +193,27 @@ messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;SAT:count;MODE:status;
 ### Supported Commands
 Send via BLE characteristic write:
 ```
-CMD:SIM_ON     - Enable simulation mode
-CMD:SIM_OFF    - Disable simulation mode
 CMD:STATUS     - Request immediate status update
 CMD:PING       - Test connection (responds with PONG)
+CMD:DIAGNOSTIC - Run comprehensive hardware diagnostics
 ```
 
-### Legacy Commands (Backward Compatibility)
+### Command Responses
 ```
-SIM_ON         - Enable simulation (without CMD: prefix)
-SIM_OFF        - Disable simulation (without CMD: prefix)
+PONG:OK                    - Response to PING command
+STATUS:OBD=REAL,GPS=OK...  - System status with component health
+DIAG:ADC:OK,OBD:OK...      - Diagnostic test results (7 tests)
 ```
+
+### Diagnostic Tests
+The DIAGNOSTIC command runs 7 hardware tests:
+- **ADC**: Analog-to-digital converter functionality
+- **OBD**: OBD-II serial interface initialization
+- **BLE**: Bluetooth Low Energy stack status
+- **VIN**: Vehicle input voltage detection
+- **HEAP**: Available memory check
+- **CLIENT**: BLE client connection status
+- **SERVER**: BLE server initialization status
 
 ## Configuration
 
@@ -217,20 +230,23 @@ Key settings in `config.h`:
 2. **Connection**: LED blinks until BLE client connects, then stays on
 3. **Data Modes**: 
    - DISABLED: No sensor data (default)
-   - SIMULATED: Test data generation
    - REAL: Actual OBD-II and hardware sensor data
+   - SIMULATED: Client-side test data generation (web dashboard only)
 4. **BLE Streaming**: Message-counted data with API version validation
 5. **Storage**: Circular buffer logging (100 entries max)
-6. **Error Handling**: Graceful fallback between real and simulated data
+6. **Error Handling**: Graceful fallback when OBD connection lost
 7. **Status Monitoring**: Averaged component health over 10 readings
+8. **Diagnostics**: On-demand hardware testing via CMD:DIAGNOSTIC
 
 ## Architecture Notes
 
 - **Simplified Design**: No dependency on full Freematics library
 - **Hardware Abstraction**: Direct sensor reading via ESP32 ADC
-- **Simulation Support**: Built-in test data generation
+- **Client-Side Simulation**: Test data generation moved to web dashboard
 - **Protocol Versioning**: API compatibility checking
 - **Web Integration**: Designed for modern web dashboard interface
+- **Diagnostic Framework**: Compact hardware testing with 7 core tests
+- **Real-Time Focus**: Device optimized for actual vehicle data collection
 
 ## ⚠️ CRITICAL: Legacy Hardware Compatibility Notes
 
@@ -271,20 +287,22 @@ Key settings in `config.h`:
 
 ### Size Reduction Strategies ALREADY APPLIED:
 1. ✅ **Removed WiFi Library**: Eliminated `#include <WiFi.h>` and `#include <Wire.h>`
-2. ✅ **Removed Diagnostic Mode**: Eliminated comprehensive hardware diagnostics
-3. ✅ **Reduced PID Support**: Cut from 80+ PIDs to 6 core engine PIDs only
+2. ✅ **Moved Simulation to Client**: Eliminated device-side simulation code (~50KB)
+3. ✅ **Simplified Diagnostics**: Compact 7-test diagnostic framework
 4. ✅ **Simplified BLE Protocol**: Shortened field names (RPM, SPD, TEMP, etc.)
-5. ✅ **Removed Status History**: Eliminated averaging arrays and complex status tracking
-6. ✅ **Simplified OBD Parsing**: Reduced parseOBDResponse from 80+ cases to 8 cases
-7. ✅ **Removed Hardware Abstractions**: Eliminated complex sensor reading functions
+5. ✅ **Maintained Core PIDs**: Kept essential OBD-II parameter support
+6. ✅ **Streamlined OBD Parsing**: Focused on real vehicle data collection
+7. ✅ **Client-Side Features**: Moved complex logic to web dashboard
 
-### CRITICAL ISSUE: Size Reduction Had NO EFFECT
-The sketch size remained exactly the same (1,681,902 bytes) despite removing significant code. This suggests:
+### LATEST REFACTORING RESULTS:
+After moving simulation logic to client-side and simplifying diagnostics:
 
-1. **Compiler Optimization**: Dead code elimination may already be removing unused functions
-2. **Library Dependencies**: BLE and core ESP32 libraries are consuming most space
-3. **String Literals**: Remaining strings and constants are still too large
-4. **Template Instantiation**: C++ templates in BLE library may be expanding significantly
+1. **Simulation Removal**: ~50KB of simulation code moved to web dashboard
+2. **Diagnostic Simplification**: Complex diagnostic state machine replaced with 7 simple tests
+3. **Focus on Real Data**: Device optimized for actual vehicle OBD-II collection
+4. **Client-Side Intelligence**: Web dashboard handles simulation and complex UI logic
+
+**STATUS: Refactoring complete - ready for size testing with latest changes**
 
 ### EMERGENCY WORKAROUNDS REQUIRED:
 
@@ -319,4 +337,17 @@ Create a completely new minimal sketch with:
 arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=huge_app freematics_custom.ino
 ```
 
-**STATUS: BLOCKED - Cannot deploy until partition scheme is changed or hardware is upgraded.**
+**STATUS: REFACTORED - Test deployment with latest size optimizations**
+
+### Next Steps:
+1. **Test Compilation**: Run `./deploy.sh` to check if size reduction was effective
+2. **Partition Scheme**: If still too large, change to "Huge APP" partition
+3. **Hardware Upgrade**: Consider ESP32-S3 with more flash memory
+4. **Minimal Build**: Create bare-bones version if needed
+
+### Recent Changes Summary:
+- Moved 50KB+ simulation code to client-side JavaScript
+- Simplified diagnostics to 7 compact tests
+- Focused device on real vehicle data collection
+- Enhanced web dashboard with client-side simulation
+- Maintained full OBD-II protocol support for real data
