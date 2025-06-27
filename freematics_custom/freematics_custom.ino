@@ -32,6 +32,9 @@ bool bluetoothClientConnected = false;
 unsigned long lastLedBlink = 0;
 bool ledState = false;
 
+// Forward declaration of bluetooth callback
+void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param);
+
 // Simple OBD-II implementation
 class SimpleOBD {
 public:
