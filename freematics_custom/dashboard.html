@@ -1681,7 +1681,7 @@
                 console.warn('Error determining color class:', colorError, 'value:', value, 'type:', type);
                 return 'info'; // Safe fallback
             }
-        };
+            };
 
             return (
                 <div className="dashboard">
@@ -2234,7 +2234,8 @@
             );
         }
 
-        ReactDOM.render(<FreematicsDashboard />, document.getElementById('root'));
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<FreematicsDashboard />);
     </script>
 </body>
 </html>
