@@ -78,34 +78,6 @@ private:
     String lastError = "";
     unsigned long lastErrorTime = 0;
     
-    String runDiagnostics() {
-        String results = "";
-        
-        // Simple test array: name, test function, expected result
-        struct DiagTest {
-            const char* name;
-            bool (*test)();
-        };
-        
-        DiagTest tests[] = {
-            {"ADC", []() { return analogRead(36) > 0; }},
-            {"OBD", []() { Serial2.begin(38400, SERIAL_8N1, 16, 17); delay(100); return true; }},
-            {"BLE", []() { return BLEDevice::getInitialized(); }},
-            {"VIN", []() { return analogRead(A0) > 100; }},
-            {"HEAP", []() { return ESP.getFreeHeap() > 50000; }},
-            {"CLIENT", []() { return bleClientConnected; }},
-            {"SERVER", []() { return pServer != NULL; }}
-        };
-        
-        for (int i = 0; i < 7; i++) {
-            results += tests[i].name;
-            results += ":";
-            results += tests[i].test() ? "OK" : "FAIL";
-            results += (i < 6) ? "," : "";
-        }
-        
-        return results;
-    }
     
 public:
     bool init() { 
@@ -215,7 +187,32 @@ public:
     
     
     String runFullDiagnostics() {
-        return runDiagnostics();
+        String results = "";
+        
+        // Simple test array: name, test function, expected result
+        struct DiagTest {
+            const char* name;
+            bool (*test)();
+        };
+        
+        DiagTest tests[] = {
+            {"ADC", []() { return analogRead(36) > 0; }},
+            {"OBD", []() { Serial2.begin(38400, SERIAL_8N1, 16, 17); delay(100); return true; }},
+            {"BLE", []() { return BLEDevice::getInitialized(); }},
+            {"VIN", []() { return analogRead(A0) > 100; }},
+            {"HEAP", []() { return ESP.getFreeHeap() > 50000; }},
+            {"CLIENT", []() { return bleClientConnected; }},
+            {"SERVER", []() { return pServer != NULL; }}
+        };
+        
+        for (int i = 0; i < 7; i++) {
+            results += tests[i].name;
+            results += ":";
+            results += tests[i].test() ? "OK" : "FAIL";
+            results += (i < 6) ? "," : "";
+        }
+        
+        return results;
     }
     
     String getLastError() {
@@ -655,45 +652,10 @@ private:
     int statusHistoryCount = 0;
     
 public:
+    TeleStore store;
+    SimpleOBD obd;
+    SimpleGPS gps;
     
-    void startDiagnosticMode() {
-        diagnosticMode = true;
-        diagnosticStartTime = millis();
-        diagnosticStep = 0;
-        diagnosticResults = "";
-        Serial.println("=== STARTING DIAGNOSTIC MODE ===");
-    }
-    
-    void processDiagnosticMode() {
-        if (!diagnosticMode) return;
-        
-        unsigned long elapsed = millis() - diagnosticStartTime;
-        
-        switch (diagnosticStep) {
-            case 0:
-                Serial.println("Running comprehensive diagnostics...");
-                diagnosticResults = obd.runFullDiagnostics();
-                diagnosticStep = 1;
-                break;
-                
-            case 1:
-                if (elapsed > 2000) { // Wait 2 seconds for diagnostics to complete
-                    Serial.println("Diagnostics complete!");
-                    Serial.println(diagnosticResults);
-                    
-                    // Send results via BLE if connected
-                    if (bleClientConnected && pCharacteristic) {
-                        String diagMsg = String(millis()) + ",DIAG:" + diagnosticResults + ";";
-                        pCharacteristic->setValue(diagMsg.c_str());
-                        pCharacteristic->notify();
-                    }
-                    
-                    diagnosticMode = false;
-                    diagnosticStep = 0;
-                }
-                break;
-        }
-    }
     
     bool init()
     {
@@ -772,12 +734,6 @@ public:
     {
         // Handle LED blinking when no client connected
         handleLedBlink();
-        
-        // Process diagnostic mode if active
-        if (diagnosticMode) {
-            processDiagnosticMode();
-            return; // Skip normal processing during diagnostics
-        }
         
         // Only process data if BLE client is connected
         if (bleClientConnected) {
@@ -1098,9 +1054,6 @@ private:
     }
     
     uint16_t m_state = 0;
-    TeleStore store;
-    SimpleOBD obd;
-    SimpleGPS gps;
 };
 
 // BLE Characteristic Callbacks
@@ -1128,11 +1081,14 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                     }
                 } else if (command == "DIAGNOSTIC" && logger) {
                     Serial.println("Diagnostic mode requested via BLE");
-                    logger->startDiagnosticMode();
                     
-                    // Send immediate acknowledgment
+                    // Run diagnostics immediately and send results
+                    String diagnosticResults = loggerInstance.obd.runFullDiagnostics();
+                    Serial.println("Diagnostic results: " + diagnosticResults);
+                    
+                    // Send results via BLE
                     if (pCharacteristic) {
-                        String response = String(millis()) + ",DIAGNOSTIC_STARTED:OK;";
+                        String response = String(millis()) + ",DIAG:" + diagnosticResults + ";";
                         pCharacteristic->setValue(response.c_str());
                         pCharacteristic->notify();
                     }
