@@ -2050,6 +2050,204 @@
                             </span>
                             <div className="metric-tooltip">{getTooltipContent('satellites', data.gps.satellites)}</div>
                         </div>
+                    </div>
+
+                    <div className="tabs">
+                        <div 
+                            className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('overview')}
+                        >
+                            Overview
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'performance' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('performance')}
+                        >
+                            Performance
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'temperatures' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('temperatures')}
+                        >
+                            Temperatures
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'percentages' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('percentages')}
+                        >
+                            Load & Levels
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'fuel' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('fuel')}
+                        >
+                            Fuel System
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'diagnostics' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('diagnostics')}
+                        >
+                            Diagnostics
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'reference' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('reference')}
+                        >
+                            OBD-II Reference
+                        </div>
+                    </div>
+
+                    <div className="tab-content">
+                        <div className={`tab-panel ${activeTab === 'overview' ? 'active' : ''}`}>
+                            <div className="compact-metrics">
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.engineLoad, 'engineLoad')}`}>
+                                        {data.engineLoad}%
+                                    </div>
+                                    <div className="compact-label">Engine Load <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.engineLoad, 'engineLoad').color}`}>
+                                        {getRangeInfo(data.engineLoad, 'engineLoad').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('engineLoad', data.engineLoad)}</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.throttlePos, 'throttle')}`}>
+                                        {data.throttlePos}%
+                                    </div>
+                                    <div className="compact-label">Throttle Position <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${data.throttlePos > 90 ? 'warning' : 'normal'}`}>
+                                        {data.throttlePos > 90 ? 'Wide Open' : data.throttlePos > 50 ? 'High' : data.throttlePos > 20 ? 'Moderate' : data.throttlePos > 0 ? 'Light' : 'Closed'}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('throttlePos', data.throttlePos)}</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelLevel, 'fuelLevel')}`}>
+                                        {data.fuelLevel}%
+                                    </div>
+                                    <div className="compact-label">Fuel Level <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelLevel, 'fuelLevel').color}`}>
+                                        {getRangeInfo(data.fuelLevel, 'fuelLevel').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelLevel', data.fuelLevel)}</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.intakeTemp, 'ambient')}`}>
+                                        {data.intakeTemp}°F
+                                    </div>
+                                    <div className="compact-label">Intake Temp <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${data.intakeTemp > 120 ? 'warning' : data.intakeTemp > 70 ? 'normal' : 'cold'}`}>
+                                        {data.intakeTemp > 120 ? 'Hot' : data.intakeTemp > 70 ? 'Normal' : 'Cold'}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('intakeTemp', data.intakeTemp)}</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.oilTemp, 'oilTemp')}`}>
+                                        {data.oilTemp}°F
+                                    </div>
+                                    <div className="compact-label">Oil Temp <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${data.oilTemp > 250 ? 'danger' : data.oilTemp > 220 ? 'warning' : data.oilTemp > 180 ? 'normal' : 'cold'}`}>
+                                        {data.oilTemp > 250 ? 'Too Hot' : data.oilTemp > 220 ? 'Hot' : data.oilTemp > 180 ? 'Normal' : 'Cold'}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('oilTemp', data.oilTemp)}</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelPressure, 'pressure')}`}>
+                                        {data.fuelPressure} psi
+                                    </div>
+                                    <div className="compact-label">Fuel Pressure <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelPressure, 'pressure').color}`}>
+                                        {getRangeInfo(data.fuelPressure, 'pressure').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelPressure', data.fuelPressure)}</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelTrimShort, 'fuelTrim')}`}>
+                                        {data.fuelTrimShort > 0 ? '+' : ''}{data.fuelTrimShort}%
+                                    </div>
+                                    <div className="compact-label">Short Fuel Trim <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelTrimShort, 'fuelTrim').color}`}>
+                                        {getRangeInfo(data.fuelTrimShort, 'fuelTrim').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelTrimShort', data.fuelTrimShort)}</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.fuelTrimLong, 'fuelTrim')}`}>
+                                        {data.fuelTrimLong > 0 ? '+' : ''}{data.fuelTrimLong}%
+                                    </div>
+                                    <div className="compact-label">Long Fuel Trim <span className="metric-info">?</span></div>
+                                    <span className={`range-indicator ${getRangeInfo(data.fuelTrimLong, 'fuelTrim').color}`}>
+                                        {getRangeInfo(data.fuelTrimLong, 'fuelTrim').text}
+                                    </span>
+                                    <div className="metric-tooltip">{getTooltipContent('fuelTrimLong', data.fuelTrimLong)}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'performance' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={chartRef}></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'temperatures' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={tempChartRef}></canvas>
+                                </div>
+                            </div>
+                            <div className="compact-metrics">
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.catalystTemp, 'exhaustTemp')}`}>
+                                        {data.catalystTemp}°F
+                                    </div>
+                                    <div className="compact-label">Catalyst Temp</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className={`compact-value ${getColorClass(data.exhaustTemp, 'exhaustTemp')}`}>
+                                        {data.exhaustTemp}°F
+                                    </div>
+                                    <div className="compact-label">Exhaust Temp</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'percentages' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={percentChartRef}></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className={`tab-panel ${activeTab === 'fuel' ? 'active' : ''}`}>
+                            <div className="chart-container">
+                                <div className="chart-wrapper">
+                                    <canvas ref={fuelChartRef}></canvas>
+                                </div>
+                            </div>
+                            <div className="compact-metrics">
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.fuelRate.toFixed(2)} L/h
+                                    </div>
+                                    <div className="compact-label">Fuel Rate</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.mafFlow.toFixed(2)} g/s
+                                    </div>
+                                    <div className="compact-label">MAF Flow</div>
+                                </div>
+                                <div className="compact-metric">
+                                    <div className="compact-value info">
+                                        {data.o2Voltage.toFixed(3)} V
+                                    </div>
+                                    <div className="compact-label">O2 Sensor</div>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className={`tab-panel ${activeTab === 'reference' ? 'active' : ''}`}>
                             <div style={{padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '20px'}}>
@@ -2335,204 +2533,6 @@
                                     <p><strong>Why Monitor These Values?</strong> Regular monitoring helps detect problems early, optimize fuel economy, ensure emissions compliance, and prevent costly engine damage.</p>
                                     
                                     <p><strong>Warning Signs:</strong> Values outside normal ranges often indicate maintenance needs, sensor failures, or mechanical problems that should be addressed promptly.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="tabs">
-                        <div 
-                            className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('overview')}
-                        >
-                            Overview
-                        </div>
-                        <div 
-                            className={`tab ${activeTab === 'performance' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('performance')}
-                        >
-                            Performance
-                        </div>
-                        <div 
-                            className={`tab ${activeTab === 'temperatures' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('temperatures')}
-                        >
-                            Temperatures
-                        </div>
-                        <div 
-                            className={`tab ${activeTab === 'percentages' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('percentages')}
-                        >
-                            Load & Levels
-                        </div>
-                        <div 
-                            className={`tab ${activeTab === 'fuel' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('fuel')}
-                        >
-                            Fuel System
-                        </div>
-                        <div 
-                            className={`tab ${activeTab === 'diagnostics' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('diagnostics')}
-                        >
-                            Diagnostics
-                        </div>
-                        <div 
-                            className={`tab ${activeTab === 'reference' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('reference')}
-                        >
-                            OBD-II Reference
-                        </div>
-                    </div>
-
-                    <div className="tab-content">
-                        <div className={`tab-panel ${activeTab === 'overview' ? 'active' : ''}`}>
-                            <div className="compact-metrics">
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.engineLoad, 'engineLoad')}`}>
-                                        {data.engineLoad}%
-                                    </div>
-                                    <div className="compact-label">Engine Load <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${getRangeInfo(data.engineLoad, 'engineLoad').color}`}>
-                                        {getRangeInfo(data.engineLoad, 'engineLoad').text}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('engineLoad', data.engineLoad)}</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.throttlePos, 'throttle')}`}>
-                                        {data.throttlePos}%
-                                    </div>
-                                    <div className="compact-label">Throttle Position <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${data.throttlePos > 90 ? 'warning' : 'normal'}`}>
-                                        {data.throttlePos > 90 ? 'Wide Open' : data.throttlePos > 50 ? 'High' : data.throttlePos > 20 ? 'Moderate' : data.throttlePos > 0 ? 'Light' : 'Closed'}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('throttlePos', data.throttlePos)}</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.fuelLevel, 'fuelLevel')}`}>
-                                        {data.fuelLevel}%
-                                    </div>
-                                    <div className="compact-label">Fuel Level <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${getRangeInfo(data.fuelLevel, 'fuelLevel').color}`}>
-                                        {getRangeInfo(data.fuelLevel, 'fuelLevel').text}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('fuelLevel', data.fuelLevel)}</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.intakeTemp, 'ambient')}`}>
-                                        {data.intakeTemp}°F
-                                    </div>
-                                    <div className="compact-label">Intake Temp <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${data.intakeTemp > 120 ? 'warning' : data.intakeTemp > 70 ? 'normal' : 'cold'}`}>
-                                        {data.intakeTemp > 120 ? 'Hot' : data.intakeTemp > 70 ? 'Normal' : 'Cold'}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('intakeTemp', data.intakeTemp)}</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.oilTemp, 'oilTemp')}`}>
-                                        {data.oilTemp}°F
-                                    </div>
-                                    <div className="compact-label">Oil Temp <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${data.oilTemp > 250 ? 'danger' : data.oilTemp > 220 ? 'warning' : data.oilTemp > 180 ? 'normal' : 'cold'}`}>
-                                        {data.oilTemp > 250 ? 'Too Hot' : data.oilTemp > 220 ? 'Hot' : data.oilTemp > 180 ? 'Normal' : 'Cold'}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('oilTemp', data.oilTemp)}</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.fuelPressure, 'pressure')}`}>
-                                        {data.fuelPressure} psi
-                                    </div>
-                                    <div className="compact-label">Fuel Pressure <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${getRangeInfo(data.fuelPressure, 'pressure').color}`}>
-                                        {getRangeInfo(data.fuelPressure, 'pressure').text}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('fuelPressure', data.fuelPressure)}</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.fuelTrimShort, 'fuelTrim')}`}>
-                                        {data.fuelTrimShort > 0 ? '+' : ''}{data.fuelTrimShort}%
-                                    </div>
-                                    <div className="compact-label">Short Fuel Trim <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${getRangeInfo(data.fuelTrimShort, 'fuelTrim').color}`}>
-                                        {getRangeInfo(data.fuelTrimShort, 'fuelTrim').text}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('fuelTrimShort', data.fuelTrimShort)}</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.fuelTrimLong, 'fuelTrim')}`}>
-                                        {data.fuelTrimLong > 0 ? '+' : ''}{data.fuelTrimLong}%
-                                    </div>
-                                    <div className="compact-label">Long Fuel Trim <span className="metric-info">?</span></div>
-                                    <span className={`range-indicator ${getRangeInfo(data.fuelTrimLong, 'fuelTrim').color}`}>
-                                        {getRangeInfo(data.fuelTrimLong, 'fuelTrim').text}
-                                    </span>
-                                    <div className="metric-tooltip">{getTooltipContent('fuelTrimLong', data.fuelTrimLong)}</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={`tab-panel ${activeTab === 'performance' ? 'active' : ''}`}>
-                            <div className="chart-container">
-                                <div className="chart-wrapper">
-                                    <canvas ref={chartRef}></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={`tab-panel ${activeTab === 'temperatures' ? 'active' : ''}`}>
-                            <div className="chart-container">
-                                <div className="chart-wrapper">
-                                    <canvas ref={tempChartRef}></canvas>
-                                </div>
-                            </div>
-                            <div className="compact-metrics">
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.catalystTemp, 'exhaustTemp')}`}>
-                                        {data.catalystTemp}°F
-                                    </div>
-                                    <div className="compact-label">Catalyst Temp</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className={`compact-value ${getColorClass(data.exhaustTemp, 'exhaustTemp')}`}>
-                                        {data.exhaustTemp}°F
-                                    </div>
-                                    <div className="compact-label">Exhaust Temp</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={`tab-panel ${activeTab === 'percentages' ? 'active' : ''}`}>
-                            <div className="chart-container">
-                                <div className="chart-wrapper">
-                                    <canvas ref={percentChartRef}></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className={`tab-panel ${activeTab === 'fuel' ? 'active' : ''}`}>
-                            <div className="chart-container">
-                                <div className="chart-wrapper">
-                                    <canvas ref={fuelChartRef}></canvas>
-                                </div>
-                            </div>
-                            <div className="compact-metrics">
-                                <div className="compact-metric">
-                                    <div className="compact-value info">
-                                        {data.fuelRate.toFixed(2)} L/h
-                                    </div>
-                                    <div className="compact-label">Fuel Rate</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className="compact-value info">
-                                        {data.mafFlow.toFixed(2)} g/s
-                                    </div>
-                                    <div className="compact-label">MAF Flow</div>
-                                </div>
-                                <div className="compact-metric">
-                                    <div className="compact-value info">
-                                        {data.o2Voltage.toFixed(3)} V
-                                    </div>
-                                    <div className="compact-label">O2 Sensor</div>
                                 </div>
                             </div>
                         </div>
