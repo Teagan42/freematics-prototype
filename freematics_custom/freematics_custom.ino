@@ -346,6 +346,66 @@ private:
         return;
     }
     
+    void sendBLEData()
+    {
+        static uint32_t lastBLETime = 0;
+        static uint32_t lastStatusTime = 0;
+        static uint32_t lastHeartbeatTime = 0;
+        static uint32_t messageCounter = 0;
+        
+        if (millis() - lastBLETime < BLE_INTERVAL) return;
+        
+        if (bleClientConnected && (m_state & STATE_BLE_READY)) {
+            // Send main data packet
+            String bleData = formatDataForBLE();
+            if (bleData.length() > 0) {
+                messageCounter++;
+                String fullMessage = String(messageCounter) + ":" + bleData;
+                
+                // Log what we're sending
+                Serial.println("BLE TX: " + fullMessage);
+                
+                pCharacteristic->setValue(fullMessage.c_str());
+                pCharacteristic->notify();
+                
+                // Small delay to ensure message is sent
+                delay(10);
+            }
+            
+            // Send periodic status updates every 5 seconds
+            if (millis() - lastStatusTime > 5000) {
+                messageCounter++;
+                String statusData = String(messageCounter) + ":" + String(millis()) + ",STATUS:";
+                statusData += "OBD=" + String(obd.isUsingRealData() ? "REAL" : "SIM") + ",";
+                statusData += "GPS=" + String((m_state & STATE_GPS_READY) ? "OK" : "FAIL") + ",";
+                statusData += "STORAGE=" + String((m_state & STATE_STORAGE_READY) ? "OK" : "FAIL") + ",";
+                statusData += "BLE=" + String((m_state & STATE_BLE_READY) ? "OK" : "FAIL") + ",";
+                statusData += "UPTIME=" + String(millis() / 1000) + ";";
+                
+                Serial.println("BLE TX STATUS: " + statusData);
+                pCharacteristic->setValue(statusData.c_str());
+                pCharacteristic->notify();
+                lastStatusTime = millis();
+                
+                delay(10);
+            }
+            
+            // Send heartbeat every 2 seconds when no other data
+            if (millis() - lastHeartbeatTime > 2000) {
+                messageCounter++;
+                String heartbeat = String(messageCounter) + ":" + String(millis()) + ",HEARTBEAT:OK;";
+                
+                Serial.println("BLE TX HEARTBEAT: " + heartbeat);
+                pCharacteristic->setValue(heartbeat.c_str());
+                pCharacteristic->notify();
+                lastHeartbeatTime = millis();
+                
+                delay(10);
+            }
+        }
+        
+        lastBLETime = millis();
+    }
     
     String formatDataForBLE()
     {
