@@ -1154,17 +1154,85 @@
                     return; // Don't process as sensor data
                 }
 
+                // Handle special diagnostic messages that don't follow standard format
+                if (dataToProcess.startsWith('DIAGNOSTIC_RESULTS:')) {
+                    const diagnosticData = dataToProcess.substring('DIAGNOSTIC_RESULTS:'.length);
+                    try {
+                        if (!diagnosticData || typeof diagnosticData !== 'string') {
+                            throw new Error('Invalid diagnostic results format');
+                        }
+                        // Convert pipe separators to newlines and format properly
+                        const results = diagnosticData.replace(/\|/g, '\n').replace(/\n+/g, '\n').trim();
+                        setDiagnosticResults(prev => {
+                            const currentResults = prev || '';
+                            return currentResults + (currentResults ? '\n' : '') + results;
+                        });
+                        setDiagnosticError(null);
+                    } catch (diagError) {
+                        console.error('Error processing diagnostic results:', diagError);
+                        setDiagnosticError('Failed to process diagnostic results: ' + diagError.message);
+                        setDiagnosticResults(prev => (prev || '') + '\n❌ Error processing results: ' + diagError.message);
+                    }
+                    return; // Don't process as sensor data
+                }
+                    
+                if (dataToProcess.startsWith('DIAGNOSTIC_STARTED:')) {
+                    try {
+                        setDiagnosticRunning(true);
+                        setDiagnosticError(null);
+                        setDiagnosticResults('Diagnostic mode started... Running comprehensive system checks...');
+                    } catch (diagError) {
+                        console.error('Error handling diagnostic start:', diagError);
+                        setDiagnosticError('Failed to start diagnostic process');
+                    }
+                    return; // Don't process as sensor data
+                }
+                    
+                if (dataToProcess.startsWith('DIAGNOSTIC_COMPLETE:')) {
+                    const status = dataToProcess.substring('DIAGNOSTIC_COMPLETE:'.length);
+                    try {
+                        setDiagnosticRunning(false);
+                        if (status === 'SUCCESS') {
+                            setDiagnosticResults(prev => (prev || '') + '\n\n✅ Diagnostic completed successfully!');
+                            setDiagnosticError(null);
+                        } else if (status === 'FAILED' || status === 'ERROR') {
+                            setDiagnosticResults(prev => (prev || '') + '\n\n❌ Diagnostic completed with errors!');
+                            setDiagnosticError('Diagnostic process completed with errors');
+                        } else {
+                            setDiagnosticResults(prev => (prev || '') + '\n\n⚠️ Diagnostic completed with unknown status: ' + status);
+                        }
+                    } catch (diagError) {
+                        console.error('Error handling diagnostic completion:', diagError);
+                        setDiagnosticError('Failed to complete diagnostic process');
+                        setDiagnosticRunning(false);
+                    }
+                    return; // Don't process as sensor data
+                }
+
                 // Parse the data format: messageId:timestamp,RPM:value;SPD:value;GPS:lat,lng;
                 try {
                     // Validate raw data format before processing
-                    if (!rawData || typeof rawData !== 'string' || rawData.trim().length === 0) {
+                    if (!dataToProcess || typeof dataToProcess !== 'string' || dataToProcess.trim().length === 0) {
                         throw new Error('Empty or invalid data received');
                     }
                     // Handle message counter prefix (messageId:data)
                     let dataToProcess = rawData;
                     let messageId = null;
                     
-                    if (rawData.includes(':') && rawData.match(/^\d+:/)) {
+                    // Special handling for diagnostic results that may not have message counter
+                    if (rawData.includes('DIAGNOSTIC_RESULTS:') || rawData.includes('DIAGNOSTIC_STARTED:') || rawData.includes('DIAGNOSTIC_COMPLETE:')) {
+                        // Check if it has message counter prefix
+                        if (rawData.includes(':') && rawData.match(/^\d+:/)) {
+                            const colonIndex = rawData.indexOf(':');
+                            messageId = parseInt(rawData.substring(0, colonIndex));
+                            dataToProcess = rawData.substring(colonIndex + 1);
+                            console.log('Message ID:', messageId, 'Data:', dataToProcess);
+                        } else {
+                            // No message counter, use raw data directly
+                            dataToProcess = rawData;
+                            console.log('Diagnostic message without counter:', dataToProcess);
+                        }
+                    } else if (rawData.includes(':') && rawData.match(/^\d+:/)) {
                         const colonIndex = rawData.indexOf(':');
                         messageId = parseInt(rawData.substring(0, colonIndex));
                         dataToProcess = rawData.substring(colonIndex + 1);
@@ -1363,52 +1431,6 @@
                                                 dataUpdates.apiVersion = apiVersion;
                                                 validateApiVersion(apiVersion);
                                             }
-                                        }
-                                        break;
-                                    case 'DIAGNOSTIC_STARTED':
-                                        try {
-                                            setDiagnosticRunning(true);
-                                            setDiagnosticError(null);
-                                            setDiagnosticResults('Diagnostic mode started... Running comprehensive system checks...');
-                                        } catch (diagError) {
-                                            console.error('Error handling diagnostic start:', diagError);
-                                            setDiagnosticError('Failed to start diagnostic process');
-                                        }
-                                        break;
-                                    case 'DIAGNOSTIC_RESULTS':
-                                        try {
-                                            if (!value || typeof value !== 'string') {
-                                                throw new Error('Invalid diagnostic results format');
-                                            }
-                                            // Convert pipe separators to newlines and format properly
-                                            const results = value.replace(/\|/g, '\n').replace(/\n+/g, '\n').trim();
-                                            setDiagnosticResults(prev => {
-                                                const currentResults = prev || '';
-                                                return currentResults + (currentResults ? '\n' : '') + results;
-                                            });
-                                            setDiagnosticError(null);
-                                        } catch (diagError) {
-                                            console.error('Error processing diagnostic results:', diagError);
-                                            setDiagnosticError('Failed to process diagnostic results: ' + diagError.message);
-                                            setDiagnosticResults(prev => (prev || '') + '\n❌ Error processing results: ' + diagError.message);
-                                        }
-                                        break;
-                                    case 'DIAGNOSTIC_COMPLETE':
-                                        try {
-                                            setDiagnosticRunning(false);
-                                            if (value === 'SUCCESS') {
-                                                setDiagnosticResults(prev => (prev || '') + '\n\n✅ Diagnostic completed successfully!');
-                                                setDiagnosticError(null);
-                                            } else if (value === 'FAILED' || value === 'ERROR') {
-                                                setDiagnosticResults(prev => (prev || '') + '\n\n❌ Diagnostic completed with errors!');
-                                                setDiagnosticError('Diagnostic process completed with errors');
-                                            } else {
-                                                setDiagnosticResults(prev => (prev || '') + '\n\n⚠️ Diagnostic completed with unknown status: ' + value);
-                                            }
-                                        } catch (diagError) {
-                                            console.error('Error handling diagnostic completion:', diagError);
-                                            setDiagnosticError('Failed to complete diagnostic process');
-                                            setDiagnosticRunning(false);
                                         }
                                         break;
                                 }
