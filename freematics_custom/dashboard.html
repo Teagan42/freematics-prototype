@@ -1153,6 +1153,34 @@
                                         dataUpdates.ambientTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
                                         hasSensorData = true;
                                         break;
+                                    case 'OIL_TEMP':
+                                        dataUpdates.oilTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
+                                        break;
+                                    case 'EXHAUST_TEMP':
+                                        dataUpdates.exhaustTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
+                                        break;
+                                    case 'FUEL_PRESSURE':
+                                        dataUpdates.fuelPressure = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'FUEL_RATE':
+                                        dataUpdates.fuelRate = (parseInt(value) || 0) / 100; // Convert from cL/h to L/h
+                                        hasSensorData = true;
+                                        break;
+                                    case 'CATALYST_TEMP':
+                                        dataUpdates.catalystTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
+                                        hasSensorData = true;
+                                        break;
+                                    case 'BOOST_PRESSURE':
+                                        dataUpdates.boostPressure = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
+                                    case 'TURBO_RPM':
+                                        dataUpdates.turboRpm = parseInt(value) || 0;
+                                        hasSensorData = true;
+                                        break;
                                     case 'ENGINE_LOAD':
                                         dataUpdates.engineLoad = parseInt(value) || 0;
                                         hasSensorData = true;
@@ -1290,7 +1318,8 @@
                                             if (!value || typeof value !== 'string') {
                                                 throw new Error('Invalid diagnostic results format');
                                             }
-                                            const results = value.replace(/\|/g, '\n'); // Convert pipe separators back to newlines
+                                            // Convert pipe separators to newlines and format properly
+                                            const results = value.replace(/\|/g, '\n').replace(/\n+/g, '\n').trim();
                                             setDiagnosticResults(prev => {
                                                 const currentResults = prev || '';
                                                 return currentResults + (currentResults ? '\n' : '') + results;
@@ -1512,6 +1541,7 @@
                 // Generate realistic simulated data
                 const baseRpm = 1500 + Math.sin(elapsed * 0.1) * 300;
                 const baseSpeed = 60 + Math.sin(elapsed * 0.05) * 15;
+                const isHighPerformance = Math.random() > 0.7; // 30% chance of high performance mode
                 
                 return {
                     rpm: Math.round(baseRpm + (Math.random() - 0.5) * 200),
@@ -1533,8 +1563,8 @@
                     mafFlow: (15 + Math.sin(elapsed * 0.1) * 5 + (Math.random() - 0.5) * 2).toFixed(1),
                     o2Voltage: (0.45 + (Math.random() - 0.5) * 0.2).toFixed(3),
                     catalystTemp: Math.round(750 + (Math.random() - 0.5) * 100), // °F
-                    boostPressure: Math.round((Math.random()) * 5), // Low boost for NA engine
-                    turboRpm: 0, // No turbo
+                    boostPressure: isHighPerformance ? Math.round(8 + (Math.random() - 0.5) * 6) : Math.round((Math.random()) * 2), // Realistic boost
+                    turboRpm: isHighPerformance ? Math.round(80000 + (Math.random() - 0.5) * 40000) : 0, // Realistic turbo RPM
                     gps: {
                         lat: 37.7749 + (Math.random() - 0.5) * 0.01,
                         lng: -122.4194 + (Math.random() - 0.5) * 0.01,

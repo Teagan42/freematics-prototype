@@ -901,6 +901,17 @@ private:
                 value = ((A * 256) + B) / 20; // Engine fuel rate L/h
                 return true;
                 
+            // Turbo/Boost Control PIDs
+            case PID_BOOST_PRESSURE_CONTROL:
+                value = A; // Boost pressure control percentage
+                return true;
+            case PID_TURBOCHARGER_RPM:
+                value = ((A * 256) + B) * 4; // Turbocharger RPM
+                return true;
+            case PID_EXHAUST_GAS_TEMP_BANK_1:
+                value = ((A * 256) + B) / 10 - 40; // Exhaust gas temperature °C
+                return true;
+                
             default:
                 lastError = "Unsupported PID 0x" + String(pid, HEX) + " for parsing";
                 lastErrorTime = millis();
@@ -1261,9 +1272,23 @@ private:
         if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) data += "AMBIENT:" + String(value) + ";";
         if (obd.readPID(PID_ENGINE_PRESSURE, value)) data += "PRESSURE:" + String(value) + ";";
         
+        // Additional engine parameters for UI synchronization
+        if (obd.readPID(PID_ENGINE_OIL_TEMP, value)) data += "OIL_TEMP:" + String(value) + ";";
+        if (obd.readPID(PID_EXHAUST_GAS_TEMP_BANK_1, value)) data += "EXHAUST_TEMP:" + String(value) + ";";
+        if (obd.readPID(PID_FUEL_PRESSURE, value)) data += "FUEL_PRESSURE:" + String(value) + ";";
+        if (obd.readPID(PID_ENGINE_FUEL_RATE, value)) data += "FUEL_RATE:" + String(value) + ";";
+        if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) data += "CATALYST_TEMP:" + String(value) + ";";
+        if (obd.readPID(PID_TURBOCHARGER_RPM, value)) data += "TURBO_RPM:" + String(value) + ";";
+        if (obd.readPID(PID_BOOST_PRESSURE_CONTROL, value)) data += "BOOST_PRESSURE:" + String(value) + ";";
+        
         float lat, lng;
         uint8_t sat;
         if (gps.getData(lat, lng, sat)) {
+            // Store GPS coordinates as integers for storage, but send as floats for UI
+            store.log(0x20, (int32_t)(lat * 1000000));
+            store.log(0x21, (int32_t)(lng * 1000000));
+            store.log(0x22, sat);
+            
             data += "GPS:" + String(lat, 6) + "," + String(lng, 6) + ";";
             data += "SAT:" + String(sat);
             
