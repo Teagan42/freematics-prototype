@@ -1833,7 +1833,14 @@
                                             <br/><strong>Idle:</strong> 10-25 psi
                                             <br/><strong>Driving:</strong> 25-65 psi
                                             <br/><strong>Warning:</strong> &lt;10 psi (potential engine damage)`,
-                    batteryVoltage: `Electrical system voltage. Engine off: 12.4-12.8V (good battery). Running: 13.8-14.4V (charging). <12.0V indicates problems.`,
+                    deviceVoltage: `Device input voltage from vehicle's 12V system. Powers the Freematics device and indicates vehicle electrical health.
+                                            <br/><strong>Engine Off:</strong> 12.4-12.8V (good battery)
+                                            <br/><strong>Engine Running:</strong> 13.8-14.4V (charging)
+                                            <br/><strong>Warning:</strong> &lt;12.0V (weak battery/charging issue)`,
+                    batteryVoltage: `Vehicle battery voltage from OBD-II system. May differ from device input voltage due to wiring resistance.
+                                            <br/><strong>Engine Off:</strong> 12.4-12.8V (good battery)
+                                            <br/><strong>Engine Running:</strong> 13.8-14.4V (charging)
+                                            <br/><strong>Warning:</strong> &lt;12.0V (weak battery/charging issue)`,
                     ambientTemp: `Outside air temperature. Affects engine performance and cooling efficiency. Hot weather reduces power.`,
                     engineLoad: `How hard the engine works vs maximum capacity. Normal: 20-40% city, 40-70% highway. >85% sustained is high stress.`,
                     throttlePos: `Throttle valve opening. 0% = closed (idle), 100% = wide open. Normal: 0-20% cruise, 20-80% acceleration.`,
