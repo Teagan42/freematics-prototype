@@ -268,6 +268,9 @@ CustomFreematicsLogger logger;
 void setup()
 {
     Serial.begin(115200);
+    while (!Serial) {
+        ; // Wait for serial port to connect. Needed for native USB
+    }
     delay(1000);
     
     Serial.println("Freematics Custom Starting...");
