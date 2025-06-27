@@ -992,6 +992,20 @@
                 }
             };
 
+            const handleDisconnection = () => {
+                console.log('Device disconnected');
+                setIsConnected(false);
+                setDevice(null);
+                setCharacteristic(null);
+                
+                // Log disconnection
+                setRawDataLog(prev => [...prev, {
+                    timestamp: new Date().toLocaleTimeString(),
+                    data: 'Device disconnected',
+                    type: 'disconnect'
+                }]);
+            };
+
             const validateApiVersion = (receivedVersion) => {
                 if (receivedVersion === null || receivedVersion === undefined) {
                     setApiVersionError({
