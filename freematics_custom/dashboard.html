@@ -264,14 +264,12 @@
                     const device = await navigator.bluetooth.requestDevice({
                         filters: [
                             { name: 'FreematicsCustom' },
-                            { namePrefix: 'Freematics' },
-                            { address: 'A4:83:E7:CC:52:C3' },
-                            { address: '24:95:2F:D5:59:1B' }
+                            { namePrefix: 'Freematics' }
                         ],
                         optionalServices: ['12345678-1234-1234-1234-123456789abc']
                     }).catch(err => {
                         if (err.name === 'NotFoundError') {
-                            throw new Error('No Freematics device found. Expected devices: A4:83:E7:CC:52:C3 or 24:95:2F:D5:59:1B. Make sure the device is powered on and in range.');
+                            throw new Error('No Freematics device found. Make sure the device is powered on and in range.');
                         }
                         throw err;
                     });

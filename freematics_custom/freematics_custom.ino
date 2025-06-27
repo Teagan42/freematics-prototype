@@ -240,8 +240,23 @@ void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
                 param->srv_open.rem_bda[2], param->srv_open.rem_bda[3],
                 param->srv_open.rem_bda[4], param->srv_open.rem_bda[5]);
         
-        bluetoothClientConnected = true;
-        Serial.println("BT connected: " + String(clientAddress));
+        // Check if client address is in expected list
+        bool isExpectedClient = false;
+        for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
+            if (EXPECTED_BT_ADDRESSES[i].equals(String(clientAddress))) {
+                isExpectedClient = true;
+                break;
+            }
+        }
+        
+        if (isExpectedClient) {
+            bluetoothClientConnected = true;
+            Serial.println("BT connected (authorized): " + String(clientAddress));
+        } else {
+            Serial.println("BT connection rejected (unauthorized): " + String(clientAddress));
+            // Disconnect unauthorized client
+            SerialBT.disconnect();
+        }
     } else if (event == ESP_SPP_CLOSE_EVT) {
         bluetoothClientConnected = false;
         Serial.println("BT disconnected");
