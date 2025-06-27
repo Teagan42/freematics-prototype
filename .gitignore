@@ -1,1 +1,39 @@
 .aider*
+# Arduino IDE files
+*.hex
+*.elf
+*.map
+*.bin
+
+# Build artifacts
+build/
+*.o
+*.a
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# Libraries and dependencies that should be downloaded fresh
+Freematics/
+
+# Log files
+*.log
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
