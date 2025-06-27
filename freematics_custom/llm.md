@@ -56,15 +56,17 @@ chmod +x deploy-web.sh
 - Run deployment script or connect manually via USB
 - Monitor Serial output at 115200 baud using `screen /dev/cu.usbserial-* 115200`
 - Verify initialization of OBD, GPS, storage, and BLE components
-- Test simulation mode without vehicle connection
+- Test client-side simulation mode without vehicle connection
 - Verify hardware sensor readings (battery voltage, ambient temperature)
 
 ### 2. Web Dashboard Testing
 - Open `dashboard.html` in Chrome/Edge browser (HTTPS required)
-- Test BLE connection and pairing
-- Verify real-time data display and charting
-- Test simulation controls (start/stop simulation)
-- Check command protocol (ping, status requests)
+- Test BLE connection and pairing with proper error handling
+- Verify real-time data display and charting with null safety
+- Test client-side simulation controls (start/stop simulation)
+- Check command protocol (DIAGNOSTIC, STATUS, PING) with connection validation
+- Verify chart updates handle undefined data gracefully
+- Test diagnostics button functionality and error reporting
 
 ### 3. Vehicle Testing
 - Connect OBD-II cable to vehicle diagnostic port
@@ -76,9 +78,10 @@ chmod +x deploy-web.sh
 ### 4. BLE Protocol Testing
 - Use web dashboard or Freematics BLE Android application
 - Connect to device named "FreematicsCustom"
-- Test command protocol (SIM_ON, SIM_OFF, STATUS, PING)
+- Test command protocol (DIAGNOSTIC, STATUS, PING) with proper error handling
 - Verify API version compatibility checking
 - Monitor message counter and data formatting
+- Test connection state validation before sending commands
 
 ## BLE Data Protocol
 
@@ -200,20 +203,29 @@ CMD:DIAGNOSTIC - Run comprehensive hardware diagnostics
 
 ### Command Responses
 ```
-PONG:OK                    - Response to PING command
-STATUS:OBD=REAL,GPS=OK...  - System status with component health
-DIAG:ADC:OK,OBD:OK...      - Diagnostic test results (7 tests)
+PONG:OK                           - Response to PING command
+STATUS:OBD=REAL,GPS=OK...         - System status with component health
+DIAGNOSTIC_STARTED:RUNNING        - Diagnostic process initiated
+DIAGNOSTIC_RESULTS:detailed_info  - Comprehensive test results with pipe separators
+DIAGNOSTIC_COMPLETE:SUCCESS       - Diagnostic process finished
 ```
 
-### Diagnostic Tests
-The DIAGNOSTIC command runs 7 hardware tests:
-- **ADC**: Analog-to-digital converter functionality
-- **OBD**: OBD-II serial interface initialization
-- **BLE**: Bluetooth Low Energy stack status
-- **VIN**: Vehicle input voltage detection
-- **HEAP**: Available memory check
-- **CLIENT**: BLE client connection status
-- **SERVER**: BLE server initialization status
+### Enhanced Diagnostic System
+The DIAGNOSTIC command runs comprehensive hardware tests with detailed reporting:
+- **ADC Tests**: Multiple pin voltage testing (GPIO 36, 39, 34, 35, 32, 33)
+- **Digital Pin Tests**: State verification (GPIO 2, 4, 5, 16, 17, 18)
+- **I2C Bus Scanning**: Device detection (SDA=21, SCL=22)
+- **SPI Interface**: Pin state verification (MISO=19, MOSI=23, SCK=18, SS=5)
+- **OBD-II Testing**: Multiple baud rate testing and interface validation
+- **ESP32 System**: Memory, voltage, and health checks
+- **BLE Connectivity**: Stack verification and connection testing
+- **Automatic Issue Detection**: Problem identification with recommendations
+
+### Diagnostic Error Handling
+- **Connection Validation**: Commands only sent when device properly connected
+- **Error Logging**: Failed commands logged with detailed error messages
+- **Graceful Degradation**: Dashboard shows connection status and error details
+- **User Feedback**: Clear indication when device not available for commands
 
 ## Configuration
 
@@ -236,17 +248,22 @@ Key settings in `config.h`:
 5. **Storage**: Circular buffer logging (100 entries max)
 6. **Error Handling**: Graceful fallback when OBD connection lost
 7. **Status Monitoring**: Averaged component health over 10 readings
-8. **Diagnostics**: On-demand hardware testing via CMD:DIAGNOSTIC
+8. **Enhanced Diagnostics**: Multi-stage hardware testing with detailed results
+9. **Dashboard Stability**: Robust error handling for simulation and chart updates
+10. **Command Validation**: Connection state checking before command transmission
 
 ## Architecture Notes
 
 - **Simplified Design**: No dependency on full Freematics library
 - **Hardware Abstraction**: Direct sensor reading via ESP32 ADC
-- **Client-Side Simulation**: Test data generation moved to web dashboard
+- **Client-Side Simulation**: Test data generation moved to web dashboard with crash protection
 - **Protocol Versioning**: API compatibility checking
-- **Web Integration**: Designed for modern web dashboard interface
-- **Diagnostic Framework**: Compact hardware testing with 7 core tests
+- **Web Integration**: Designed for modern web dashboard interface with robust error handling
+- **Enhanced Diagnostic Framework**: Comprehensive hardware testing with detailed reporting
 - **Real-Time Focus**: Device optimized for actual vehicle data collection
+- **Crash Prevention**: Dashboard handles undefined data gracefully with null coalescing
+- **Connection Management**: Proper BLE connection state validation and error reporting
+- **Chart Stability**: All chart updates include fallback values to prevent crashes
 
 ## ⚠️ CRITICAL: Legacy Hardware Compatibility Notes
 
@@ -347,7 +364,19 @@ arduino-cli compile --fqbn esp32:esp32:esp32:PartitionScheme=huge_app freematics
 
 ### Recent Changes Summary:
 - Moved 50KB+ simulation code to client-side JavaScript
-- Simplified diagnostics to 7 compact tests
+- Enhanced diagnostics with comprehensive hardware testing
 - Focused device on real vehicle data collection
-- Enhanced web dashboard with client-side simulation
+- Fixed dashboard simulation crashes with proper data handling
+- Fixed diagnostics button with connection state validation
+- Added null safety to all chart updates and data history
+- Enhanced error handling for BLE command transmission
+- Improved user feedback for connection status and errors
 - Maintained full OBD-II protocol support for real data
+
+### Latest Bug Fixes (Commit ad844bc):
+- **Dashboard Simulation Crashes**: Fixed undefined data access in chart updates
+- **Diagnostics Button**: Added proper connection validation and error handling
+- **Chart Updates**: Added null coalescing (|| 0) to prevent undefined value crashes
+- **Data History**: Enhanced fallback logic for missing sensor data
+- **Command Protocol**: Improved error logging and user feedback for failed commands
+- **Connection Management**: Better BLE connection state checking and validation
