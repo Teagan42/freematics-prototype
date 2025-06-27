@@ -189,27 +189,197 @@ public:
     String runFullDiagnostics() {
         String results = "";
         
-        // Simple test array: name, test function, expected result
-        struct DiagTest {
-            const char* name;
-            bool (*test)();
-        };
+        // ESP32 System Information
+        results += "=== ESP32 SYSTEM INFO ===|";
+        results += "Chip Model: " + String(ESP.getChipModel()) + "|";
+        results += "Chip Revision: " + String(ESP.getChipRevision()) + "|";
+        results += "CPU Frequency: " + String(ESP.getCpuFreqMHz()) + " MHz|";
+        results += "Flash Size: " + String(ESP.getFlashChipSize() / 1024 / 1024) + " MB|";
+        results += "Free Heap: " + String(ESP.getFreeHeap()) + " bytes|";
+        results += "Uptime: " + String(millis() / 1000) + " seconds|";
+        results += "|";
         
-        DiagTest tests[] = {
-            {"ADC", []() { return analogRead(36) > 0; }},
-            {"OBD", []() { Serial2.begin(38400, SERIAL_8N1, 16, 17); delay(100); return true; }},
-            {"BLE", []() { return BLEDevice::getInitialized(); }},
-            {"VIN", []() { return analogRead(A0) > 100; }},
-            {"HEAP", []() { return ESP.getFreeHeap() > 50000; }},
-            {"CLIENT", []() { return bleClientConnected; }},
-            {"SERVER", []() { return pServer != NULL; }}
-        };
+        // Power Supply Analysis
+        results += "=== POWER SUPPLY ANALYSIS ===|";
+        int vinRaw = analogRead(A0);
+        float vinVoltage = (vinRaw / 4095.0) * 3.3 * 6.0; // 6:1 voltage divider
+        results += "VIN Raw ADC: " + String(vinRaw) + " (0-4095)|";
+        results += "VIN Voltage: " + String(vinVoltage, 2) + "V|";
+        results += "VIN Status: " + String((vinVoltage > 11.0 && vinVoltage < 16.0) ? "OK" : "WARNING") + "|";
+        results += "3.3V Rail: " + String(analogRead(36) > 100 ? "OK" : "FAIL") + "|";
+        results += "|";
         
-        for (int i = 0; i < 7; i++) {
-            results += tests[i].name;
-            results += ":";
-            results += tests[i].test() ? "OK" : "FAIL";
-            results += (i < 6) ? "," : "";
+        // ADC Pin Testing
+        results += "=== ADC PIN TESTING ===|";
+        int adcPins[] = {36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13};
+        String adcNames[] = {"VP(36)", "VN(39)", "GPIO34", "GPIO35", "GPIO32", "GPIO33", 
+                           "GPIO25", "GPIO26", "GPIO27", "GPIO14", "GPIO12", "GPIO13"};
+        
+        for (int i = 0; i < 12; i++) {
+            int value = analogRead(adcPins[i]);
+            float voltage = (value / 4095.0) * 3.3;
+            results += adcNames[i] + ": " + String(value) + " (" + String(voltage, 2) + "V)|";
+        }
+        results += "|";
+        
+        // Digital Pin State Testing
+        results += "=== DIGITAL PIN TESTING ===|";
+        int digitalPins[] = {2, 4, 5, 16, 17, 18, 19, 21, 22, 23};
+        String digitalNames[] = {"GPIO2", "GPIO4", "GPIO5", "GPIO16", "GPIO17", 
+                               "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"};
+        
+        for (int i = 0; i < 10; i++) {
+            pinMode(digitalPins[i], INPUT_PULLUP);
+            delay(10);
+            bool state = digitalRead(digitalPins[i]);
+            results += digitalNames[i] + ": " + String(state ? "HIGH" : "LOW") + "|";
+        }
+        results += "|";
+        
+        // I2C Bus Scanning
+        results += "=== I2C BUS SCAN (SDA=21, SCL=22) ===|";
+        Wire.begin(21, 22); // SDA=21, SCL=22
+        int deviceCount = 0;
+        for (int addr = 1; addr < 127; addr++) {
+            Wire.beginTransmission(addr);
+            if (Wire.endTransmission() == 0) {
+                results += "I2C Device found at 0x" + String(addr, HEX) + "|";
+                deviceCount++;
+            }
+        }
+        if (deviceCount == 0) {
+            results += "No I2C devices found|";
+        } else {
+            results += "Total I2C devices: " + String(deviceCount) + "|";
+        }
+        results += "|";
+        
+        // SPI Pin State Verification
+        results += "=== SPI PIN VERIFICATION ===|";
+        pinMode(19, INPUT_PULLUP); // MISO
+        pinMode(23, INPUT_PULLUP); // MOSI  
+        pinMode(18, INPUT_PULLUP); // SCK
+        pinMode(5, INPUT_PULLUP);  // SS
+        delay(10);
+        results += "MISO(19): " + String(digitalRead(19) ? "HIGH" : "LOW") + "|";
+        results += "MOSI(23): " + String(digitalRead(23) ? "HIGH" : "LOW") + "|";
+        results += "SCK(18): " + String(digitalRead(18) ? "HIGH" : "LOW") + "|";
+        results += "SS(5): " + String(digitalRead(5) ? "HIGH" : "LOW") + "|";
+        results += "|";
+        
+        // OBD-II Interface Testing
+        results += "=== OBD-II INTERFACE TESTING ===|";
+        results += "Testing Serial2 (RX=16, TX=17)...|";
+        
+        // Test multiple baud rates
+        int baudRates[] = {9600, 38400, 115200, 230400};
+        bool obdResponsive = false;
+        
+        for (int i = 0; i < 4; i++) {
+            Serial2.begin(baudRates[i], SERIAL_8N1, 16, 17);
+            delay(100);
+            
+            // Send AT command
+            Serial2.println("ATZ");
+            delay(500);
+            
+            String response = "";
+            unsigned long startTime = millis();
+            while (millis() - startTime < 1000 && Serial2.available()) {
+                response += (char)Serial2.read();
+            }
+            
+            if (response.length() > 0) {
+                results += "Baud " + String(baudRates[i]) + ": RESPONSE (" + String(response.length()) + " chars)|";
+                obdResponsive = true;
+            } else {
+                results += "Baud " + String(baudRates[i]) + ": NO RESPONSE|";
+            }
+            
+            Serial2.end();
+            delay(100);
+        }
+        
+        results += "OBD Interface: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
+        results += "|";
+        
+        // BLE System Verification
+        results += "=== BLE SYSTEM VERIFICATION ===|";
+        results += "BLE Initialized: " + String(BLEDevice::getInitialized() ? "YES" : "NO") + "|";
+        results += "BLE Server: " + String(pServer != NULL ? "ACTIVE" : "NULL") + "|";
+        results += "BLE Characteristic: " + String(pCharacteristic != NULL ? "ACTIVE" : "NULL") + "|";
+        results += "Client Connected: " + String(bleClientConnected ? "YES" : "NO") + "|";
+        
+        // Get BLE address
+        String bleAddress = BLEDevice::getAddress().toString().c_str();
+        results += "BLE Address: " + bleAddress + "|";
+        results += "|";
+        
+        // Memory Analysis
+        results += "=== MEMORY ANALYSIS ===|";
+        results += "Free Heap: " + String(ESP.getFreeHeap()) + " bytes|";
+        results += "Min Free Heap: " + String(ESP.getMinFreeHeap()) + " bytes|";
+        results += "Heap Size: " + String(ESP.getHeapSize()) + " bytes|";
+        results += "Free PSRAM: " + String(ESP.getFreePsram()) + " bytes|";
+        
+        // Calculate memory health
+        float heapUsage = ((float)(ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize()) * 100;
+        results += "Heap Usage: " + String(heapUsage, 1) + "%|";
+        results += "Memory Health: " + String(heapUsage < 80 ? "GOOD" : "WARNING") + "|";
+        results += "|";
+        
+        // Temperature Monitoring
+        results += "=== TEMPERATURE MONITORING ===|";
+        #ifdef SOC_TEMP_SENSOR_SUPPORTED
+        float internalTemp = temperatureRead();
+        results += "ESP32 Internal: " + String(internalTemp, 1) + "°C|";
+        results += "Thermal Status: " + String(internalTemp < 80 ? "NORMAL" : "HOT") + "|";
+        #else
+        results += "ESP32 Internal: NOT SUPPORTED|";
+        #endif
+        
+        // External temperature sensor test
+        int tempSensorValue = analogRead(36);
+        if (tempSensorValue > 100 && tempSensorValue < 4000) {
+            float voltage = (tempSensorValue / 4095.0) * 3.3;
+            float temp_celsius = (voltage - 0.5) * 100.0; // TMP36 formula
+            results += "External Sensor: " + String(temp_celsius, 1) + "°C (GPIO36)|";
+        } else {
+            results += "External Sensor: NOT DETECTED (GPIO36)|";
+        }
+        results += "|";
+        
+        // System Health Summary
+        results += "=== SYSTEM HEALTH SUMMARY ===|";
+        
+        // Count issues
+        int issues = 0;
+        if (vinVoltage < 11.0 || vinVoltage > 16.0) issues++;
+        if (ESP.getFreeHeap() < 50000) issues++;
+        if (heapUsage > 80) issues++;
+        #ifdef SOC_TEMP_SENSOR_SUPPORTED
+        if (internalTemp > 80) issues++;
+        #endif
+        if (!BLEDevice::getInitialized()) issues++;
+        if (!obdResponsive) issues++;
+        
+        results += "Issues Found: " + String(issues) + "|";
+        results += "Overall Status: " + String(issues == 0 ? "EXCELLENT" : 
+                                              issues <= 2 ? "GOOD" : 
+                                              issues <= 4 ? "WARNING" : "CRITICAL") + "|";
+        
+        // Recommendations
+        if (issues > 0) {
+            results += "|=== RECOMMENDATIONS ===|";
+            if (vinVoltage < 11.0) results += "• Check vehicle battery - voltage too low|";
+            if (vinVoltage > 16.0) results += "• Check charging system - voltage too high|";
+            if (ESP.getFreeHeap() < 50000) results += "• Memory low - restart device|";
+            if (heapUsage > 80) results += "• High memory usage - check for leaks|";
+            #ifdef SOC_TEMP_SENSOR_SUPPORTED
+            if (internalTemp > 80) results += "• ESP32 running hot - check ventilation|";
+            #endif
+            if (!BLEDevice::getInitialized()) results += "• BLE not initialized - restart required|";
+            if (!obdResponsive) results += "• No OBD response - check vehicle connection|";
         }
         
         return results;
@@ -1082,16 +1252,46 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                 } else if (command == "DIAGNOSTIC" && logger) {
                     Serial.println("Diagnostic mode requested via BLE");
                     
-                    // Run diagnostics immediately and send results
-                    String diagnosticResults = logger->obd.runFullDiagnostics();
-                    Serial.println("Diagnostic results: " + diagnosticResults);
-                    
-                    // Send results via BLE
+                    // Send diagnostic started message
                     if (pCharacteristic) {
-                        String response = String(millis()) + ",DIAG:" + diagnosticResults + ";";
-                        pCharacteristic->setValue(response.c_str());
+                        String startMsg = String(millis()) + ",DIAGNOSTIC_STARTED:RUNNING;";
+                        pCharacteristic->setValue(startMsg.c_str());
                         pCharacteristic->notify();
+                        delay(100);
                     }
+                    
+                    // Run comprehensive diagnostics
+                    String diagnosticResults = logger->obd.runFullDiagnostics();
+                    Serial.println("Diagnostic results length: " + String(diagnosticResults.length()));
+                    
+                    // Send results in chunks if too large for single BLE packet
+                    if (diagnosticResults.length() > 400) {
+                        // Split into chunks
+                        int chunkSize = 400;
+                        int chunks = (diagnosticResults.length() + chunkSize - 1) / chunkSize;
+                        
+                        for (int i = 0; i < chunks; i++) {
+                            int start = i * chunkSize;
+                            int end = min(start + chunkSize, (int)diagnosticResults.length());
+                            String chunk = diagnosticResults.substring(start, end);
+                            
+                            String chunkMsg = String(millis()) + ",DIAGNOSTIC_RESULTS:" + chunk + ";";
+                            pCharacteristic->setValue(chunkMsg.c_str());
+                            pCharacteristic->notify();
+                            delay(200); // Allow time for transmission
+                        }
+                    } else {
+                        // Send as single message
+                        String resultMsg = String(millis()) + ",DIAGNOSTIC_RESULTS:" + diagnosticResults + ";";
+                        pCharacteristic->setValue(resultMsg.c_str());
+                        pCharacteristic->notify();
+                        delay(100);
+                    }
+                    
+                    // Send completion message
+                    String completeMsg = String(millis()) + ",DIAGNOSTIC_COMPLETE:SUCCESS;";
+                    pCharacteristic->setValue(completeMsg.c_str());
+                    pCharacteristic->notify();
                 }
             }
         }
