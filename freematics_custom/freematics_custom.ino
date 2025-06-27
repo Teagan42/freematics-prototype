@@ -242,20 +242,72 @@ private:
     }
 };
 
-// Minimal GPS simulation
+// Minimal GPS simulation with averaging
 class SimpleGPS {
+private:
+    static const int HISTORY_SIZE = 10;
+    uint8_t satHistory[HISTORY_SIZE];
+    int historyIndex = 0;
+    int historyCount = 0;
+    
 public:
-    bool begin() { return true; }
+    bool begin() { 
+        // Initialize history array
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+            satHistory[i] = 0;
+        }
+        return true; 
+    }
+    
     bool getData(float& lat, float& lng, uint8_t& sat) {
         lat = 37.7749 + (random(-1000, 1000) / 100000.0);
         lng = -122.4194 + (random(-1000, 1000) / 100000.0);
-        sat = 8 + random(-2, 2);
+        
+        // Generate satellite count (avoid zero)
+        uint8_t currentSat = 4 + random(0, 8); // Range 4-11 satellites
+        
+        // Store in history
+        satHistory[historyIndex] = currentSat;
+        historyIndex = (historyIndex + 1) % HISTORY_SIZE;
+        if (historyCount < HISTORY_SIZE) {
+            historyCount++;
+        }
+        
+        // Calculate average
+        if (historyCount > 0) {
+            uint32_t sum = 0;
+            for (int i = 0; i < historyCount; i++) {
+                sum += satHistory[i];
+            }
+            sat = sum / historyCount;
+        } else {
+            sat = currentSat;
+        }
+        
         return true;
+    }
+    
+    int getHistoryCount() {
+        return historyCount;
     }
 };
 
 class CustomFreematicsLogger
 {
+private:
+    static const int STATUS_HISTORY_SIZE = 10;
+    struct StatusReading {
+        bool obdReal;
+        bool obdSim;
+        bool gpsReady;
+        bool storageReady;
+        bool bleReady;
+        unsigned long timestamp;
+    };
+    StatusReading statusHistory[STATUS_HISTORY_SIZE];
+    int statusHistoryIndex = 0;
+    int statusHistoryCount = 0;
+    
 public:
     void setSimulationEnabled(bool enabled) {
         obd.setSimulationEnabled(enabled);
@@ -452,13 +504,22 @@ private:
             
             // Send periodic status updates every 5 seconds
             if (millis() - lastStatusTime > 5000) {
+                // Record current status in history
+                recordStatusReading();
+                
                 messageCounter++;
                 String statusData = String(messageCounter) + ":" + String(millis()) + ",STATUS:";
-                String obdStatus = obd.isUsingRealData() ? "REAL" : (obd.isSimulationEnabled() ? "SIM" : "OFF");
+                
+                // Get averaged status
+                String obdStatus = getAveragedOBDStatus();
+                String gpsStatus = getAveragedGPSStatus();
+                String storageStatus = getAveragedStorageStatus();
+                String bleStatus = getAveragedBLEStatus();
+                
                 statusData += "OBD=" + obdStatus + ",";
-                statusData += "GPS=" + String((m_state & STATE_GPS_READY) ? "OK" : "FAIL") + ",";
-                statusData += "STORAGE=" + String((m_state & STATE_STORAGE_READY) ? "OK" : "FAIL") + ",";
-                statusData += "BLE=" + String((m_state & STATE_BLE_READY) ? "OK" : "FAIL") + ",";
+                statusData += "GPS=" + gpsStatus + ",";
+                statusData += "STORAGE=" + storageStatus + ",";
+                statusData += "BLE=" + bleStatus + ",";
                 statusData += "UPTIME=" + String(millis() / 1000) + ";";
                 
                 Serial.println("BLE TX STATUS: " + statusData);
@@ -514,7 +575,14 @@ private:
         uint8_t sat;
         if (gps.getData(lat, lng, sat)) {
             data += "GPS:" + String(lat, 6) + "," + String(lng, 6) + ";";
-            data += "SAT:" + String(sat) + ";";
+            data += "SAT:" + String(sat);
+            
+            // Add indicator if we don't have enough readings for full average
+            int historyCount = gps.getHistoryCount();
+            if (historyCount < 10) {
+                data += "(" + String(historyCount) + "/10)";
+            }
+            data += ";";
         }
         
         // Include error information if available
@@ -524,6 +592,113 @@ private:
         }
         
         return data;
+    }
+    
+    void recordStatusReading() {
+        StatusReading& reading = statusHistory[statusHistoryIndex];
+        reading.obdReal = obd.isUsingRealData();
+        reading.obdSim = obd.isSimulationEnabled();
+        reading.gpsReady = (m_state & STATE_GPS_READY) != 0;
+        reading.storageReady = (m_state & STATE_STORAGE_READY) != 0;
+        reading.bleReady = (m_state & STATE_BLE_READY) != 0;
+        reading.timestamp = millis();
+        
+        statusHistoryIndex = (statusHistoryIndex + 1) % STATUS_HISTORY_SIZE;
+        if (statusHistoryCount < STATUS_HISTORY_SIZE) {
+            statusHistoryCount++;
+        }
+    }
+    
+    String getAveragedOBDStatus() {
+        if (statusHistoryCount == 0) {
+            return obd.isUsingRealData() ? "REAL" : (obd.isSimulationEnabled() ? "SIM" : "OFF");
+        }
+        
+        int realCount = 0, simCount = 0, offCount = 0;
+        for (int i = 0; i < statusHistoryCount; i++) {
+            if (statusHistory[i].obdReal) {
+                realCount++;
+            } else if (statusHistory[i].obdSim) {
+                simCount++;
+            } else {
+                offCount++;
+            }
+        }
+        
+        String result;
+        if (realCount >= simCount && realCount >= offCount) {
+            result = "REAL";
+        } else if (simCount >= offCount) {
+            result = "SIM";
+        } else {
+            result = "OFF";
+        }
+        
+        if (statusHistoryCount < STATUS_HISTORY_SIZE) {
+            result += "(" + String(statusHistoryCount) + "/10)";
+        }
+        
+        return result;
+    }
+    
+    String getAveragedGPSStatus() {
+        if (statusHistoryCount == 0) {
+            return (m_state & STATE_GPS_READY) ? "OK" : "FAIL";
+        }
+        
+        int okCount = 0;
+        for (int i = 0; i < statusHistoryCount; i++) {
+            if (statusHistory[i].gpsReady) {
+                okCount++;
+            }
+        }
+        
+        String result = (okCount > statusHistoryCount / 2) ? "OK" : "FAIL";
+        if (statusHistoryCount < STATUS_HISTORY_SIZE) {
+            result += "(" + String(statusHistoryCount) + "/10)";
+        }
+        
+        return result;
+    }
+    
+    String getAveragedStorageStatus() {
+        if (statusHistoryCount == 0) {
+            return (m_state & STATE_STORAGE_READY) ? "OK" : "FAIL";
+        }
+        
+        int okCount = 0;
+        for (int i = 0; i < statusHistoryCount; i++) {
+            if (statusHistory[i].storageReady) {
+                okCount++;
+            }
+        }
+        
+        String result = (okCount > statusHistoryCount / 2) ? "OK" : "FAIL";
+        if (statusHistoryCount < STATUS_HISTORY_SIZE) {
+            result += "(" + String(statusHistoryCount) + "/10)";
+        }
+        
+        return result;
+    }
+    
+    String getAveragedBLEStatus() {
+        if (statusHistoryCount == 0) {
+            return (m_state & STATE_BLE_READY) ? "OK" : "FAIL";
+        }
+        
+        int okCount = 0;
+        for (int i = 0; i < statusHistoryCount; i++) {
+            if (statusHistory[i].bleReady) {
+                okCount++;
+            }
+        }
+        
+        String result = (okCount > statusHistoryCount / 2) ? "OK" : "FAIL";
+        if (statusHistoryCount < STATUS_HISTORY_SIZE) {
+            result += "(" + String(statusHistoryCount) + "/10)";
+        }
+        
+        return result;
     }
     
     uint16_t m_state = 0;

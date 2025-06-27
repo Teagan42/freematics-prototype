@@ -721,10 +721,21 @@
                                         }
                                         break;
                                     case 'SAT':
-                                        newData.gps = {
-                                            ...newData.gps,
-                                            satellites: parseInt(value) || 0
-                                        };
+                                        // Parse satellite count and indicator
+                                        const satMatch = value.match(/^(\d+)(\([^)]+\))?/);
+                                        if (satMatch) {
+                                            newData.gps = {
+                                                ...newData.gps,
+                                                satellites: parseInt(satMatch[1]) || 0,
+                                                satelliteIndicator: satMatch[2] || null
+                                            };
+                                        } else {
+                                            newData.gps = {
+                                                ...newData.gps,
+                                                satellites: parseInt(value) || 0,
+                                                satelliteIndicator: null
+                                            };
+                                        }
                                         break;
                                     case 'MODE':
                                         // Only update if the mode actually changed to prevent flashing
@@ -920,11 +931,23 @@
                             <span className={`status-item ${data.dataMode.toLowerCase()}`}>
                                 Data: {data.dataMode}
                             </span>
-                            {Object.entries(data.systemStatus).map(([key, value]) => (
-                                <span key={key} className={`status-item ${value.toLowerCase()}`}>
-                                    {key}: {value}
-                                </span>
-                            ))}
+                            {Object.entries(data.systemStatus).map(([key, value]) => {
+                                // Extract base status and indicator
+                                const hasIndicator = value.includes('(') && value.includes(')');
+                                const baseValue = hasIndicator ? value.split('(')[0] : value;
+                                const indicator = hasIndicator ? value.match(/\(([^)]+)\)/)[1] : null;
+                                
+                                return (
+                                    <span key={key} className={`status-item ${baseValue.toLowerCase()}`}>
+                                        {key}: {baseValue}
+                                        {indicator && (
+                                            <small style={{fontSize: '0.7em', opacity: 0.8, marginLeft: '3px'}}>
+                                                ({indicator})
+                                            </small>
+                                        )}
+                                    </span>
+                                );
+                            })}
                         </div>
                         {data.lastError && (
                             <div style={{marginTop: '10px', padding: '10px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px'}}>
@@ -976,7 +999,14 @@
                         </div>
                         <div className="metric-card">
                             <div className="metric-label">GPS Satellites</div>
-                            <div className="metric-value info">{data.gps.satellites}</div>
+                            <div className="metric-value info">
+                                {data.gps.satellites}
+                                {data.gps.satelliteIndicator && (
+                                    <small style={{color: '#856404', display: 'block', fontSize: '0.4em', marginTop: '5px'}}>
+                                        {data.gps.satelliteIndicator}
+                                    </small>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -996,6 +1026,11 @@
                         </div>
                         <div className="gps-coords">
                             Satellites: {data.gps.satellites}
+                            {data.gps.satelliteIndicator && (
+                                <small style={{color: '#856404', marginLeft: '10px'}}>
+                                    {data.gps.satelliteIndicator}
+                                </small>
+                            )}
                         </div>
                     </div>
 
