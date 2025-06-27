@@ -212,7 +212,7 @@ public:
                             BLECharacteristic::PROPERTY_NOTIFY
                           );
 
-        pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+        // Callback will be set after class definition
         pCharacteristic->addDescriptor(new BLE2902());
 
         pService->start();
@@ -481,6 +481,11 @@ void setup()
     
     if (logger->init()) {
         Serial.println("Logger OK");
+        
+        // Set BLE callbacks after initialization
+        if (pCharacteristic) {
+            pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
+        }
     } else {
         Serial.println("Logger FAIL");
     }
