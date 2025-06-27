@@ -33,6 +33,25 @@ bool bleClientConnected = false;
 unsigned long lastLedBlink = 0;
 bool ledState = false;
 
+// BLE Characteristic Callbacks
+class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+        String value = pCharacteristic->getValue();
+        if (value.length() > 0) {
+            Serial.println("BLE RX: " + value);
+            
+            // Handle commands from BLE client
+            if (value == "SIM_ON" && logger) {
+                logger->setSimulationEnabled(true);
+                Serial.println("Simulation enabled via BLE command");
+            } else if (value == "SIM_OFF" && logger) {
+                logger->setSimulationEnabled(false);
+                Serial.println("Simulation disabled via BLE command");
+            }
+        }
+    }
+};
+
 // BLE Server Callbacks
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
