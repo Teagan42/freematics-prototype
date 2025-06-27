@@ -216,8 +216,8 @@ private:
         }
         
         // Fallback: read from external temperature sensor if connected
-        // Check if external sensor is connected to A1 (common setup)
-        int sensorValue = analogRead(A1);
+        // Check if external sensor is connected to GPIO36 (A0 equivalent on ESP32)
+        int sensorValue = analogRead(36);
         if (sensorValue > 100 && sensorValue < 4000) { // Valid sensor range
             // Assuming TMP36 or similar sensor: Vout = (Temp°C × 10mV) + 500mV
             float voltage = (sensorValue / 4095.0) * 3.3;
