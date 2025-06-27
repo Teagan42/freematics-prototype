@@ -6,6 +6,7 @@
 
 #include <WiFi.h>
 #include <HardwareSerial.h>
+#include <BluetoothSerial.h>
 #include "config.h"
 #include "telestore.h"
 
@@ -16,6 +17,20 @@
 #define STATE_MEMS_READY 0x8
 #define STATE_NET_READY 0x10
 #define STATE_CONNECTED 0x40
+#define STATE_BLE_READY 0x80
+
+// Expected Bluetooth client addresses
+const String EXPECTED_BT_ADDRESSES[] = {
+    "A4:83:E7:CC:52:C3",
+    "24:95:2F:D5:59:1B"
+};
+const int NUM_EXPECTED_ADDRESSES = 2;
+
+// Bluetooth Serial instance
+BluetoothSerial SerialBT;
+bool bluetoothClientConnected = false;
+unsigned long lastLedBlink = 0;
+bool ledState = false;
 
 // Simple OBD-II implementation
 class SimpleOBD {
@@ -68,6 +83,20 @@ public:
     {
         bool success = true;
         
+        // Initialize LED pin
+        pinMode(PIN_LED, OUTPUT);
+        digitalWrite(PIN_LED, LOW);
+        
+        // Initialize Bluetooth
+        Serial.print("Bluetooth...");
+        if (SerialBT.begin(BLE_DEVICE_NAME)) {
+            Serial.println("OK");
+            m_state |= STATE_BLE_READY;
+            SerialBT.register_callback(bluetoothCallback);
+        } else {
+            Serial.println("NO");
+        }
+        
         // Initialize OBD
         Serial.print("OBD...");
         if (obd.init()) {
@@ -107,6 +136,9 @@ public:
     
     void process()
     {
+        // Handle LED blinking when no client connected
+        handleLedBlink();
+        
         // Process OBD data
         if (m_state & STATE_OBD_READY) {
             processOBD();
@@ -127,6 +159,21 @@ public:
     }
     
 private:
+    void handleLedBlink()
+    {
+        if (!bluetoothClientConnected) {
+            // Blink LED every 500ms when no client connected
+            if (millis() - lastLedBlink > 500) {
+                ledState = !ledState;
+                digitalWrite(PIN_LED, ledState ? HIGH : LOW);
+                lastLedBlink = millis();
+            }
+        } else {
+            // Keep LED on when client connected
+            digitalWrite(PIN_LED, HIGH);
+        }
+    }
+    
     void processOBD()
     {
         static uint32_t lastOBDTime = 0;
@@ -192,13 +239,12 @@ private:
         static uint32_t lastBLETime = 0;
         if (millis() - lastBLETime < BLE_INTERVAL) return;
         
-        // Send data via BLE for debugging with Android app
-        if (store.getDataCount() > 0) {
-            // Format data for BLE transmission
+        // Send data via Bluetooth Serial if client connected
+        if (bluetoothClientConnected && (m_state & STATE_BLE_READY)) {
             String bleData = formatDataForBLE();
             if (bleData.length() > 0) {
-                // Send via BLE (implementation depends on specific BLE library)
-                Serial.print("BLE Data: ");
+                SerialBT.println(bleData);
+                Serial.print("BT Data sent: ");
                 Serial.println(bleData);
             }
         }
@@ -241,6 +287,45 @@ private:
     SimpleGPS gps;
 };
 
+// Bluetooth callback function
+void bluetoothCallback(esp_spp_cb_event_t event, esp_spp_cb_param_t *param) {
+    if (event == ESP_SPP_SRV_OPEN_EVT) {
+        // Get client address
+        char clientAddress[18];
+        sprintf(clientAddress, "%02X:%02X:%02X:%02X:%02X:%02X",
+                param->srv_open.rem_bda[0], param->srv_open.rem_bda[1],
+                param->srv_open.rem_bda[2], param->srv_open.rem_bda[3],
+                param->srv_open.rem_bda[4], param->srv_open.rem_bda[5]);
+        
+        Serial.print("Bluetooth client connected: ");
+        Serial.println(clientAddress);
+        
+        // Check if client address is in expected list
+        bool isExpectedClient = false;
+        for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
+            if (EXPECTED_BT_ADDRESSES[i].equals(clientAddress)) {
+                isExpectedClient = true;
+                break;
+            }
+        }
+        
+        if (isExpectedClient) {
+            bluetoothClientConnected = true;
+            Serial.println("Expected Freematics client connected - LED will stay on");
+        } else {
+            Serial.println("Warning: Unexpected client connected");
+            Serial.println("Expected addresses:");
+            for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
+                Serial.println("  " + EXPECTED_BT_ADDRESSES[i]);
+            }
+            bluetoothClientConnected = true; // Still allow connection
+        }
+    } else if (event == ESP_SPP_CLOSE_EVT) {
+        Serial.println("Bluetooth client disconnected - LED will blink");
+        bluetoothClientConnected = false;
+    }
+}
+
 CustomFreematicsLogger logger;
 
 void setup()
@@ -249,6 +334,11 @@ void setup()
     delay(1000);
     
     Serial.println("Freematics Custom Sketch Starting (Simplified Mode)...");
+    Serial.println("Expected Bluetooth clients:");
+    for (int i = 0; i < NUM_EXPECTED_ADDRESSES; i++) {
+        Serial.println("  " + EXPECTED_BT_ADDRESSES[i]);
+    }
+    Serial.println("LED will blink until a client connects...");
     
     // Initialize the logger
     if (logger.init()) {
@@ -258,6 +348,7 @@ void setup()
     }
     
     Serial.println("Setup complete. Starting main loop...");
+    Serial.println("Waiting for Bluetooth connection...");
 }
 
 void loop()
