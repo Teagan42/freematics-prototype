@@ -22,6 +22,7 @@
 
 // Forward declarations
 class CustomFreematicsLogger;
+class MyCharacteristicCallbacks;
 
 // Global instances
 CustomFreematicsLogger* logger = nullptr;
