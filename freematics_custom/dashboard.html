@@ -1879,6 +1879,294 @@
                                 )}
                             </div>
                         </div>
+
+                        <div className={`tab-panel ${activeTab === 'reference' ? 'active' : ''}`}>
+                            <div style={{padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '8px', marginBottom: '20px'}}>
+                                <h3 style={{color: '#212529', marginBottom: '15px'}}>🚗 OBD-II Data Reference Guide</h3>
+                                <p style={{color: '#495057', marginBottom: '20px'}}>
+                                    This reference explains what each OBD-II (On-Board Diagnostics) parameter means and why it's important for vehicle monitoring.
+                                    OBD-II is a standardized system that allows external electronics to interface with a car's computer system.
+                                </p>
+                            </div>
+
+                            <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px'}}>
+                                
+                                {/* Engine Performance Section */}
+                                <div style={{backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                    <h4 style={{color: '#007bff', marginBottom: '15px', borderBottom: '2px solid #007bff', paddingBottom: '5px'}}>
+                                        🔧 Engine Performance
+                                    </h4>
+                                    
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>RPM (Revolutions Per Minute)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            How fast the engine crankshaft is spinning. Higher RPM means more power but also more fuel consumption.
+                                            <br/><strong>Normal:</strong> 600-900 idle, 1500-4000 driving
+                                            <br/><strong>Warning:</strong> >4000 RPM sustained
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Vehicle Speed</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Current vehicle speed as measured by the transmission or wheel sensors.
+                                            <br/><strong>Units:</strong> Miles per hour (mph)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Engine Load (%)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            How hard the engine is working relative to its maximum capacity. Higher load means more stress on engine components.
+                                            <br/><strong>Normal:</strong> 20-40% city driving, 40-70% highway
+                                            <br/><strong>Warning:</strong> >85% sustained
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Throttle Position (%)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            How far the throttle valve is open. 0% = closed (idle), 100% = wide open throttle (WOT).
+                                            <br/><strong>Normal:</strong> 0-20% idle/cruise, 20-80% acceleration
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Temperature Monitoring Section */}
+                                <div style={{backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                    <h4 style={{color: '#dc3545', marginBottom: '15px', borderBottom: '2px solid #dc3545', paddingBottom: '5px'}}>
+                                        🌡️ Temperature Monitoring
+                                    </h4>
+                                    
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Coolant Temperature</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Engine coolant temperature. Critical for preventing engine overheating and damage.
+                                            <br/><strong>Normal:</strong> 180-220°F (82-104°C)
+                                            <br/><strong>Warning:</strong> >220°F (>104°C)
+                                            <br/><strong>Danger:</strong> >240°F (>116°C)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Intake Air Temperature</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Temperature of air entering the engine. Affects combustion efficiency and power output.
+                                            <br/><strong>Normal:</strong> 70-120°F (21-49°C)
+                                            <br/><strong>Note:</strong> Cooler air is denser and provides more power
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Oil Temperature</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Engine oil temperature. Oil viscosity changes with temperature, affecting lubrication.
+                                            <br/><strong>Normal:</strong> 180-250°F (82-121°C)
+                                            <br/><strong>Warning:</strong> >250°F (>121°C)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Exhaust Temperature</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Temperature of exhaust gases. Indicates combustion efficiency and turbo/catalyst health.
+                                            <br/><strong>Normal:</strong> 800-1200°F (427-649°C)
+                                            <br/><strong>Warning:</strong> >1200°F (>649°C)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Catalyst Temperature</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Catalytic converter temperature. Must be hot enough to work but not so hot it's damaged.
+                                            <br/><strong>Normal:</strong> 750-1100°F (399-593°C)
+                                            <br/><strong>Warning:</strong> >1100°F (>593°C)
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Fuel System Section */}
+                                <div style={{backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                    <h4 style={{color: '#28a745', marginBottom: '15px', borderBottom: '2px solid #28a745', paddingBottom: '5px'}}>
+                                        ⛽ Fuel System
+                                    </h4>
+                                    
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Fuel Level (%)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Percentage of fuel remaining in the tank.
+                                            <br/><strong>Warning:</strong> <25% (low fuel)
+                                            <br/><strong>Danger:</strong> <15% (very low fuel)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Fuel Pressure (psi)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Pressure in the fuel rail. Must be sufficient for proper fuel injection.
+                                            <br/><strong>Normal:</strong> 35-65 psi (varies by engine)
+                                            <br/><strong>Warning:</strong> <30 psi or >70 psi
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Fuel Rate (L/h)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Current fuel consumption rate in liters per hour.
+                                            <br/><strong>Idle:</strong> 1-3 L/h
+                                            <br/><strong>Highway:</strong> 8-15 L/h
+                                            <br/><strong>Heavy load:</strong> 15-30+ L/h
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Short Term Fuel Trim (%)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Real-time fuel mixture adjustment. Positive = adding fuel, negative = reducing fuel.
+                                            <br/><strong>Normal:</strong> -10% to +10%
+                                            <br/><strong>Warning:</strong> >±15% (possible vacuum leak or sensor issue)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Long Term Fuel Trim (%)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Learned fuel mixture adjustment over time. Shows long-term engine condition.
+                                            <br/><strong>Normal:</strong> -10% to +10%
+                                            <br/><strong>Warning:</strong> >±15% (engine wear or system problem)
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Air Flow & Emissions Section */}
+                                <div style={{backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                    <h4 style={{color: '#6f42c1', marginBottom: '15px', borderBottom: '2px solid #6f42c1', paddingBottom: '5px'}}>
+                                        💨 Air Flow & Emissions
+                                    </h4>
+                                    
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>MAF Flow (g/s)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Mass Air Flow - amount of air entering the engine in grams per second.
+                                            <br/><strong>Idle:</strong> 2-7 g/s
+                                            <br/><strong>Cruise:</strong> 8-25 g/s
+                                            <br/><strong>WOT:</strong> 25-80+ g/s (depends on engine size)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>O2 Sensor Voltage (V)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Oxygen sensor voltage indicates air/fuel mixture richness.
+                                            <br/><strong>Rich mixture:</strong> 0.7-1.0V (more fuel)
+                                            <br/><strong>Lean mixture:</strong> 0.1-0.3V (less fuel)
+                                            <br/><strong>Normal:</strong> Constantly switching between rich/lean
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Boost Pressure (psi)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Turbocharger or supercharger boost pressure above atmospheric.
+                                            <br/><strong>Naturally Aspirated:</strong> 0 psi
+                                            <br/><strong>Turbocharged:</strong> 5-20+ psi (varies by tune)
+                                            <br/><strong>Note:</strong> Higher boost = more power but more stress
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Turbo RPM</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Turbocharger shaft speed in revolutions per minute.
+                                            <br/><strong>Idle:</strong> 0-20,000 RPM
+                                            <br/><strong>Boost:</strong> 80,000-200,000+ RPM
+                                            <br/><strong>Note:</strong> Extremely high speeds require precise balancing
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* Electrical & Pressure Section */}
+                                <div style={{backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                    <h4 style={{color: '#fd7e14', marginBottom: '15px', borderBottom: '2px solid #fd7e14', paddingBottom: '5px'}}>
+                                        ⚡ Electrical & Pressure
+                                    </h4>
+                                    
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Battery Voltage (V)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Electrical system voltage. Critical for all electronic components.
+                                            <br/><strong>Engine Off:</strong> 12.4-12.8V (good battery)
+                                            <br/><strong>Engine Running:</strong> 13.8-14.4V (charging)
+                                            <br/><strong>Warning:</strong> <12.0V (weak battery/charging issue)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Engine Pressure (psi)</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Oil pressure in the engine lubrication system.
+                                            <br/><strong>Idle:</strong> 10-25 psi
+                                            <br/><strong>Driving:</strong> 25-65 psi
+                                            <br/><strong>Warning:</strong> <10 psi (potential engine damage)
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>Ambient Temperature</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Outside air temperature. Affects engine performance and cooling efficiency.
+                                            <br/><strong>Impact:</strong> Hot weather reduces power, cold weather affects fuel economy
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* GPS & Location Section */}
+                                <div style={{backgroundColor: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6'}}>
+                                    <h4 style={{color: '#17a2b8', marginBottom: '15px', borderBottom: '2px solid #17a2b8', paddingBottom: '5px'}}>
+                                        🛰️ GPS & Location
+                                    </h4>
+                                    
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>GPS Coordinates</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Latitude and longitude position from GPS satellites.
+                                            <br/><strong>Format:</strong> Decimal degrees (e.g., 37.7749, -122.4194)
+                                            <br/><strong>Accuracy:</strong> Typically 3-5 meters with good signal
+                                        </p>
+                                    </div>
+
+                                    <div style={{marginBottom: '15px'}}>
+                                        <strong style={{color: '#212529'}}>GPS Satellites</strong>
+                                        <p style={{fontSize: '0.9em', color: '#495057', margin: '5px 0'}}>
+                                            Number of GPS satellites currently being tracked.
+                                            <br/><strong>Minimum:</strong> 4 satellites for 3D position
+                                            <br/><strong>Good:</strong> 6-8 satellites
+                                            <br/><strong>Excellent:</strong> 9+ satellites
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{marginTop: '30px', padding: '20px', backgroundColor: '#e7f3ff', borderRadius: '8px', border: '1px solid #007bff'}}>
+                                <h4 style={{color: '#004085', marginBottom: '15px'}}>📚 Understanding OBD-II Standards</h4>
+                                <div style={{fontSize: '0.9em', color: '#004085', lineHeight: '1.6'}}>
+                                    <p><strong>What is OBD-II?</strong> On-Board Diagnostics II is a standardized system that allows external devices to access vehicle diagnostic information. It became mandatory on all cars sold in the US after 1996.</p>
+                                    
+                                    <p><strong>PIDs (Parameter IDs):</strong> Each data point has a unique identifier called a PID. For example, PID 0x0C is Engine RPM, PID 0x0D is Vehicle Speed.</p>
+                                    
+                                    <p><strong>Data Modes:</strong></p>
+                                    <ul style={{marginLeft: '20px'}}>
+                                        <li><strong>REAL:</strong> Live data from your vehicle's ECU (Engine Control Unit)</li>
+                                        <li><strong>SIMULATED:</strong> Test data generated for demonstration purposes</li>
+                                        <li><strong>DISABLED:</strong> No OBD-II data collection active</li>
+                                    </ul>
+                                    
+                                    <p><strong>Why Monitor These Values?</strong> Regular monitoring helps detect problems early, optimize fuel economy, ensure emissions compliance, and prevent costly engine damage.</p>
+                                    
+                                    <p><strong>Warning Signs:</strong> Values outside normal ranges often indicate maintenance needs, sensor failures, or mechanical problems that should be addressed promptly.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="tabs">
@@ -1917,6 +2205,12 @@
                             onClick={() => setActiveTab('diagnostics')}
                         >
                             Diagnostics
+                        </div>
+                        <div 
+                            className={`tab ${activeTab === 'reference' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('reference')}
+                        >
+                            OBD-II Reference
                         </div>
                     </div>
 
