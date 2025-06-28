@@ -140,12 +140,7 @@ public:
         
         // Initialize OBD library
         Serial.print("Initializing OBD library...");
-        if (!obd.begin(sys.link)) {
-            Serial.println("FAILED");
-            lastError = "OBD library initialization failed";
-            lastErrorTime = millis();
-            return false;
-        }
+        obd.begin(sys.link);
         Serial.println("OK");
         
         // Initialize CAN bus protocol
@@ -181,8 +176,6 @@ public:
         
         Serial.println("OK");
         return true;
-        
-        return false;
     }
     
     bool initCANInterface() {
