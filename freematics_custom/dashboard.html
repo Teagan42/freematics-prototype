@@ -1303,26 +1303,35 @@
                         if (status === 'SUCCESS') {
                             setDiagnosticResults(prev => {
                                 const updatedResults = (prev || '') + '\n\n✅ Diagnostic completed successfully!';
-                                // Send diagnostic data to webhook endpoint with updated results
-                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data), 100);
                                 return updatedResults;
                             });
                             setDiagnosticError(null);
+                            // Send webhook after a longer delay to ensure all state updates are complete
+                            setTimeout(() => {
+                                const finalResults = diagnosticResults + '\n\n✅ Diagnostic completed successfully!';
+                                sendDiagnosticToWebhook(finalResults, data, 'SUCCESS');
+                            }, 500);
                         } else if (status === 'FAILED' || status === 'ERROR') {
                             setDiagnosticResults(prev => {
                                 const updatedResults = (prev || '') + '\n\n❌ Diagnostic completed with errors!';
-                                // Send diagnostic data even on failure for troubleshooting
-                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data, 'FAILED'), 100);
                                 return updatedResults;
                             });
                             setDiagnosticError('Diagnostic process completed with errors');
+                            // Send webhook after a longer delay to ensure all state updates are complete
+                            setTimeout(() => {
+                                const finalResults = diagnosticResults + '\n\n❌ Diagnostic completed with errors!';
+                                sendDiagnosticToWebhook(finalResults, data, 'FAILED');
+                            }, 500);
                         } else {
                             setDiagnosticResults(prev => {
                                 const updatedResults = (prev || '') + '\n\n⚠️ Diagnostic completed with unknown status: ' + status;
-                                // Send diagnostic data with unknown status
-                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data, 'UNKNOWN'), 100);
                                 return updatedResults;
                             });
+                            // Send webhook after a longer delay to ensure all state updates are complete
+                            setTimeout(() => {
+                                const finalResults = diagnosticResults + '\n\n⚠️ Diagnostic completed with unknown status: ' + status;
+                                sendDiagnosticToWebhook(finalResults, data, 'UNKNOWN');
+                            }, 500);
                         }
                     } catch (diagError) {
                         console.error('Error handling diagnostic completion:', diagError);
@@ -1675,8 +1684,8 @@
                                             setDiagnosticError('⏰ Diagnostic timeout - no response from device after 45 seconds');
                                             setDiagnosticResults(prev => {
                                                 const updatedResults = prev + timeoutMessage;
-                                                // Send timeout diagnostic data to webhook
-                                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data, 'TIMEOUT'), 100);
+                                                // Send timeout diagnostic data to webhook after delay
+                                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data, 'TIMEOUT'), 500);
                                                 return updatedResults;
                                             });
                                             return false;
@@ -1873,8 +1882,11 @@
             // Function to send diagnostic data to webhook endpoint
             const sendDiagnosticToWebhook = async (diagnosticResults, currentData, diagnosticStatus = 'SUCCESS') => {
                 try {
+                    // Get the current raw data log state to ensure we have the latest entries
+                    const currentRawDataLog = rawDataLog;
+                    
                     // Extract diagnostic messages from raw data log
-                    const diagnosticMessages = rawDataLog
+                    const diagnosticMessages = currentRawDataLog
                         .filter(entry => 
                             entry.data.includes('🔧 DIAGNOSTIC MESSAGE DETECTED:') ||
                             entry.data.includes('DIAGNOSTIC') || 
@@ -1908,8 +1920,8 @@
                         
                         // Include all log entries from diagnostic start to completion
                         recentLogEntries: (diagnosticStartLogIndex !== null ? 
-                            rawDataLog.slice(diagnosticStartLogIndex) : 
-                            rawDataLog.slice(-50)
+                            currentRawDataLog.slice(diagnosticStartLogIndex) : 
+                            currentRawDataLog.slice(-50)
                         ).map(entry => ({
                             timestamp: entry.timestamp,
                             type: entry.type || 'data',
