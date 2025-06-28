@@ -567,7 +567,15 @@
             // Expected API version - update this when making breaking changes
             const EXPECTED_API_VERSION = 1;
             const [dataHistory, setDataHistory] = useState([]);
-            const [rawDataLog, setRawDataLog] = useState([]);
+            const [rawDataLog, setRawDataLog] = useState(() => {
+                try {
+                    const saved = localStorage.getItem('freematics_raw_data_log');
+                    return saved ? JSON.parse(saved) : [];
+                } catch (error) {
+                    console.error('Failed to load saved log data:', error);
+                    return [];
+                }
+            });
 
             const chartRef = useRef(null);
             const chartInstance = useRef(null);
@@ -944,11 +952,22 @@
                     console.log('Requesting Bluetooth device...');
                     
                     // Add connection event to log
-                    setRawDataLog(prev => [...prev, {
-                        timestamp: new Date().toLocaleTimeString(),
-                        data: 'Initiating Bluetooth connection...',
-                        type: 'system'
-                    }]);
+                    setRawDataLog(prev => {
+                        const newLog = [...prev, {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: 'Initiating Bluetooth connection...',
+                            type: 'system'
+                        }];
+                        
+                        // Save to localStorage
+                        try {
+                            localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                        } catch (error) {
+                            console.error('Failed to save log data to localStorage:', error);
+                        }
+                        
+                        return newLog;
+                    });
                     const device = await navigator.bluetooth.requestDevice({
                         acceptAllDevices: true,
                         optionalServices: [
@@ -1104,11 +1123,22 @@
                     device.addEventListener('gattserverdisconnected', handleDisconnection);
                     
                     // Log successful connection
-                    setRawDataLog(prev => [...prev, {
-                        timestamp: new Date().toLocaleTimeString(),
-                        data: `Connected to ${device.name || 'Unknown Device'}`,
-                        type: 'connect'
-                    }]);
+                    setRawDataLog(prev => {
+                        const newLog = [...prev, {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: `Connected to ${device.name || 'Unknown Device'}`,
+                            type: 'connect'
+                        }];
+                        
+                        // Save to localStorage
+                        try {
+                            localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                        } catch (error) {
+                            console.error('Failed to save log data to localStorage:', error);
+                        }
+                        
+                        return newLog;
+                    });
 
                 } catch (err) {
                     console.error('Connection failed:', err);
@@ -1123,11 +1153,22 @@
                 setCharacteristic(null);
                 
                 // Log disconnection
-                setRawDataLog(prev => [...prev, {
-                    timestamp: new Date().toLocaleTimeString(),
-                    data: 'Device disconnected',
-                    type: 'disconnect'
-                }]);
+                setRawDataLog(prev => {
+                    const newLog = [...prev, {
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: 'Device disconnected',
+                        type: 'disconnect'
+                    }];
+                    
+                    // Save to localStorage
+                    try {
+                        localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                    } catch (error) {
+                        console.error('Failed to save log data to localStorage:', error);
+                    }
+                    
+                    return newLog;
+                });
             };
 
             const validateApiVersion = (receivedVersion) => {
@@ -1197,6 +1238,13 @@
                     // Set diagnostic start index after adding the log entry for diagnostic messages
                     if (rawData.startsWith('DIAGNOSTIC_STARTED:') || rawData.includes('CMD:DIAGNOSTIC')) {
                         setDiagnosticStartLogIndex(newLog.length - 1); // Point to the current entry
+                    }
+                    
+                    // Save to localStorage
+                    try {
+                        localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                    } catch (error) {
+                        console.error('Failed to save log data to localStorage:', error);
                     }
                     
                     return newLog;
@@ -1598,20 +1646,42 @@
                     
                     setDataParseErrors(prev => [...prev.slice(-9), errorDetails]); // Keep last 10 errors
                     
-                    setRawDataLog(prev => [...prev.slice(-50), {
-                        timestamp: new Date().toLocaleTimeString(),
-                        data: `PARSE ERROR: ${parseError.message} | Raw: ${errorDetails.rawData}`,
-                        type: 'error'
-                    }]);
+                    setRawDataLog(prev => {
+                        const newLog = [...prev.slice(-50), {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: `PARSE ERROR: ${parseError.message} | Raw: ${errorDetails.rawData}`,
+                            type: 'error'
+                        }];
+                        
+                        // Save to localStorage
+                        try {
+                            localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                        } catch (error) {
+                            console.error('Failed to save log data to localStorage:', error);
+                        }
+                        
+                        return newLog;
+                    });
                 }
             } catch (outerError) {
                 console.error('Critical error in data handler:', outerError);
                 
-                setRawDataLog(prev => [...prev.slice(-50), {
-                    timestamp: new Date().toLocaleTimeString(),
-                    data: `CRITICAL ERROR: ${outerError.message} | Handler failed completely`,
-                    type: 'error'
-                }]);
+                setRawDataLog(prev => {
+                    const newLog = [...prev.slice(-50), {
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: `CRITICAL ERROR: ${outerError.message} | Handler failed completely`,
+                        type: 'error'
+                    }];
+                    
+                    // Save to localStorage
+                    try {
+                        localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                    } catch (error) {
+                        console.error('Failed to save log data to localStorage:', error);
+                    }
+                    
+                    return newLog;
+                });
                 
                 // Reset diagnostic state on critical errors
                 setDiagnosticRunning(false);
@@ -1663,6 +1733,13 @@
                                     setDiagnosticStartLogIndex(newLog.length - 1); // Point to the TX entry
                                 }
                                 
+                                // Save to localStorage
+                                try {
+                                    localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                                } catch (error) {
+                                    console.error('Failed to save log data to localStorage:', error);
+                                }
+                                
                                 return newLog;
                             });
                             
@@ -1701,11 +1778,22 @@
                             
                         } catch (writeError) {
                             console.error('BLE write failed:', writeError);
-                            setRawDataLog(prev => [...prev.slice(-50), {
-                                timestamp: new Date().toLocaleTimeString(),
-                                data: 'TX ERROR: BLE write failed for ' + sanitizedCommand + ' - ' + writeError.message,
-                                type: 'error'
-                            }]);
+                            setRawDataLog(prev => {
+                                const newLog = [...prev.slice(-50), {
+                                    timestamp: new Date().toLocaleTimeString(),
+                                    data: 'TX ERROR: BLE write failed for ' + sanitizedCommand + ' - ' + writeError.message,
+                                    type: 'error'
+                                }];
+                                
+                                // Save to localStorage
+                                try {
+                                    localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                                } catch (error) {
+                                    console.error('Failed to save log data to localStorage:', error);
+                                }
+                                
+                                return newLog;
+                            });
                             
                             if (sanitizedCommand === 'DIAGNOSTIC') {
                                 setDiagnosticError('Failed to send diagnostic command: ' + writeError.message);
@@ -1718,11 +1806,22 @@
                                                !device.gatt.connected ? 'Not connected' : 'Unknown state';
                         
                         console.warn('Cannot send command - device not connected:', connectionStatus);
-                        setRawDataLog(prev => [...prev.slice(-50), {
-                            timestamp: new Date().toLocaleTimeString(),
-                            data: `TX ERROR: ${connectionStatus}, cannot send ${sanitizedCommand}`,
-                            type: 'error'
-                        }]);
+                        setRawDataLog(prev => {
+                            const newLog = [...prev.slice(-50), {
+                                timestamp: new Date().toLocaleTimeString(),
+                                data: `TX ERROR: ${connectionStatus}, cannot send ${sanitizedCommand}`,
+                                type: 'error'
+                            }];
+                            
+                            // Save to localStorage
+                            try {
+                                localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                            } catch (error) {
+                                console.error('Failed to save log data to localStorage:', error);
+                            }
+                            
+                            return newLog;
+                        });
                         
                         if (sanitizedCommand === 'DIAGNOSTIC') {
                             setDiagnosticError('Cannot run diagnostic: ' + connectionStatus);
@@ -1731,11 +1830,22 @@
                     }
                 } catch (commandError) {
                     console.error('Command processing error:', commandError);
-                    setRawDataLog(prev => [...prev.slice(-50), {
-                        timestamp: new Date().toLocaleTimeString(),
-                        data: 'COMMAND ERROR: ' + commandError.message,
-                        type: 'error'
-                    }]);
+                    setRawDataLog(prev => {
+                        const newLog = [...prev.slice(-50), {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: 'COMMAND ERROR: ' + commandError.message,
+                            type: 'error'
+                        }];
+                        
+                        // Save to localStorage
+                        try {
+                            localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                        } catch (error) {
+                            console.error('Failed to save log data to localStorage:', error);
+                        }
+                        
+                        return newLog;
+                    });
                     
                     if (command === 'DIAGNOSTIC') {
                         setDiagnosticError('Command processing error: ' + commandError.message);
@@ -1970,26 +2080,59 @@
                     
                     if (response.ok) {
                         console.log('Diagnostic data sent to webhook successfully');
-                        setRawDataLog(prev => [...prev.slice(-50), {
-                            timestamp: new Date().toLocaleTimeString(),
-                            data: '📡 Diagnostic data sent to webhook endpoint successfully',
-                            type: 'system'
-                        }]);
+                        setRawDataLog(prev => {
+                            const newLog = [...prev.slice(-50), {
+                                timestamp: new Date().toLocaleTimeString(),
+                                data: '📡 Diagnostic data sent to webhook endpoint successfully',
+                                type: 'system'
+                            }];
+                            
+                            // Save to localStorage
+                            try {
+                                localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                            } catch (error) {
+                                console.error('Failed to save log data to localStorage:', error);
+                            }
+                            
+                            return newLog;
+                        });
                     } else {
                         console.error('Failed to send diagnostic data to webhook:', response.status, response.statusText);
-                        setRawDataLog(prev => [...prev.slice(-50), {
-                            timestamp: new Date().toLocaleTimeString(),
-                            data: `❌ Webhook failed: ${response.status} ${response.statusText}`,
-                            type: 'error'
-                        }]);
+                        setRawDataLog(prev => {
+                            const newLog = [...prev.slice(-50), {
+                                timestamp: new Date().toLocaleTimeString(),
+                                data: `❌ Webhook failed: ${response.status} ${response.statusText}`,
+                                type: 'error'
+                            }];
+                            
+                            // Save to localStorage
+                            try {
+                                localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                            } catch (error) {
+                                console.error('Failed to save log data to localStorage:', error);
+                            }
+                            
+                            return newLog;
+                        });
                     }
                 } catch (error) {
                     console.error('Error sending diagnostic data to webhook:', error);
-                    setRawDataLog(prev => [...prev.slice(-50), {
-                        timestamp: new Date().toLocaleTimeString(),
-                        data: `❌ Webhook error: ${error.message}`,
-                        type: 'error'
-                    }]);
+                    setRawDataLog(prev => {
+                        const newLog = [...prev.slice(-50), {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: `❌ Webhook error: ${error.message}`,
+                            type: 'error'
+                        }];
+                        
+                        // Save to localStorage
+                        try {
+                            localStorage.setItem('freematics_raw_data_log', JSON.stringify(newLog));
+                        } catch (error) {
+                            console.error('Failed to save log data to localStorage:', error);
+                        }
+                        
+                        return newLog;
+                    });
                 }
             };
             
@@ -3142,9 +3285,37 @@
                             </button>
                             <button 
                                 style={{marginLeft: '5px', padding: '5px 10px', fontSize: '0.8em'}}
-                                onClick={() => setRawDataLog([])}
+                                onClick={() => {
+                                    setRawDataLog([]);
+                                    try {
+                                        localStorage.removeItem('freematics_raw_data_log');
+                                    } catch (error) {
+                                        console.error('Failed to clear localStorage:', error);
+                                    }
+                                }}
                             >
                                 Clear Log
+                            </button>
+                            <button 
+                                style={{marginLeft: '5px', padding: '5px 10px', fontSize: '0.8em', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px'}}
+                                onClick={() => {
+                                    if (confirm('Reset all history including charts and logs? This cannot be undone.')) {
+                                        setRawDataLog([]);
+                                        setDataHistory([]);
+                                        setDiagnosticResults('');
+                                        setDiagnosticError(null);
+                                        setDataParseErrors([]);
+                                        setDiagnosticStartLogIndex(null);
+                                        try {
+                                            localStorage.removeItem('freematics_raw_data_log');
+                                            localStorage.removeItem('freematics_data_history');
+                                        } catch (error) {
+                                            console.error('Failed to clear localStorage:', error);
+                                        }
+                                    }
+                                }}
+                            >
+                                Reset History
                             </button>
                         </h3>
                         {rawDataLog.slice(-20).reverse().map((entry, index) => (
