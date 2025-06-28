@@ -23,6 +23,14 @@
 #define PIN_LED 2
 #define PIN_BUZZER 25
 
+// OBD-II CAN Bus pins (based on Freematics ONE+ schematic)
+#define CAN_TX_PIN 4    // GPIO4 → CAN_TX to SN65HVD230 transceiver
+#define CAN_RX_PIN 5    // GPIO5 → CAN_RX from SN65HVD230 transceiver
+
+// Legacy Serial OBD pins (for ELM327-style adapters)
+#define OBD_SERIAL_TX 17  // GPIO17 for Serial2 TX
+#define OBD_SERIAL_RX 16  // GPIO16 for Serial2 RX
+
 // Standard OBD-II PIDs (Mode 01 - Current Data)
 // Engine Management
 #define PID_ENGINE_LOAD 0x04

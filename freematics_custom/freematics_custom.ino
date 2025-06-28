@@ -121,8 +121,22 @@ public:
     }
     
     bool initOBDInterface() {
-        // Try UART-based OBD interface first (ELM327 style)
-        Serial2.begin(38400, SERIAL_8N1, 16, 17); // RX=16, TX=17 for ESP32
+        Serial.println("=== OBD-II INTERFACE INITIALIZATION ===");
+        Serial.println("Hardware: Freematics ONE+ with SN65HVD230 CAN transceiver");
+        Serial.println("Primary: CAN Bus (GPIO4=TX, GPIO5=RX)");
+        Serial.println("Fallback: Serial ELM327 (GPIO16=RX, GPIO17=TX)");
+        
+        // Try CAN bus interface first (primary method for Freematics ONE+)
+        Serial.print("Initializing CAN bus interface (GPIO4/5)...");
+        if (initCANInterface()) {
+            Serial.println("SUCCESS");
+            return true;
+        }
+        Serial.println("FAILED");
+        
+        // Try UART-based OBD interface as fallback (ELM327 style)
+        Serial.print("Initializing Serial OBD interface (GPIO16/17)...");
+        Serial2.begin(38400, SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
         delay(100);
         
         // Clear any existing data
@@ -152,10 +166,11 @@ public:
             }
         }
         
-        // Try different baud rates for direct CAN interface
+        // Try different baud rates for Serial OBD interface
         int baudRates[] = {115200, 500000, 250000, 38400, 9600};
         for (int i = 0; i < 5; i++) {
-            Serial2.begin(baudRates[i], SERIAL_8N1, 16, 17);
+            Serial.println("  Testing baud rate: " + String(baudRates[i]));
+            Serial2.begin(baudRates[i], SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
             delay(100);
             
             // Clear buffer
@@ -165,12 +180,41 @@ public:
             
             // Try simple initialization
             if (sendATCommand("ATZ", "OK", 1000)) {
-                Serial.println("Direct CAN interface ready at " + String(baudRates[i]));
+                Serial.println("Serial OBD interface ready at " + String(baudRates[i]));
                 return true;
             }
         }
         
-        Serial.println("No OBD interface detected");
+        Serial.println("No Serial OBD interface detected");
+        return false;
+    }
+    
+    bool initCANInterface() {
+        // Initialize CAN bus communication using correct GPIO pins
+        // Note: This is a placeholder for CAN bus initialization
+        // Real implementation would use ESP32 CAN driver or library
+        
+        Serial.println("  Setting up CAN TX (GPIO4) and RX (GPIO5) pins...");
+        
+        // Configure GPIO pins for CAN communication
+        pinMode(CAN_TX_PIN, OUTPUT);
+        pinMode(CAN_RX_PIN, INPUT);
+        
+        // Test pin connectivity
+        digitalWrite(CAN_TX_PIN, HIGH);
+        delay(10);
+        bool txPinWorking = digitalRead(CAN_TX_PIN) == HIGH;
+        
+        digitalWrite(CAN_TX_PIN, LOW);
+        delay(10);
+        bool txPinToggle = digitalRead(CAN_TX_PIN) == LOW;
+        
+        Serial.println("  CAN TX Pin (GPIO4) test: " + String(txPinWorking && txPinToggle ? "PASS" : "FAIL"));
+        Serial.println("  CAN RX Pin (GPIO5) state: " + String(digitalRead(CAN_RX_PIN) ? "HIGH" : "LOW"));
+        
+        // For now, return false to use Serial fallback
+        // TODO: Implement actual CAN bus communication using ESP32 CAN driver
+        Serial.println("  CAN bus driver not implemented - using Serial fallback");
         return false;
     }
     
@@ -318,14 +362,27 @@ public:
         // Digital Pin State Testing
         results += "=== DIGITAL PIN TESTING ===|";
         int digitalPins[] = {2, 4, 5, 16, 17, 18, 19, 21, 22, 23};
-        String digitalNames[] = {"GPIO2", "GPIO4", "GPIO5", "GPIO16", "GPIO17", 
-                               "GPIO18", "GPIO19", "GPIO21", "GPIO22", "GPIO23"};
+        String digitalNames[] = {"GPIO2(LED)", "GPIO4(CAN_TX)", "GPIO5(CAN_RX)", 
+                               "GPIO16(OBD_RX)", "GPIO17(OBD_TX)", "GPIO18(SPI_SCK)", 
+                               "GPIO19(SPI_MISO)", "GPIO21(I2C_SDA)", "GPIO22(I2C_SCL)", "GPIO23(SPI_MOSI)"};
         
         for (int i = 0; i < 10; i++) {
             pinMode(digitalPins[i], INPUT_PULLUP);
             delay(10);
             bool state = digitalRead(digitalPins[i]);
-            results += digitalNames[i] + ": " + String(state ? "HIGH" : "LOW") + "|";
+            results += digitalNames[i] + ": " + String(state ? "HIGH" : "LOW");
+            
+            // Add functional notes for key pins
+            if (digitalPins[i] == CAN_TX_PIN) {
+                results += " (CAN transmit to SN65HVD230)";
+            } else if (digitalPins[i] == CAN_RX_PIN) {
+                results += " (CAN receive from SN65HVD230)";
+            } else if (digitalPins[i] == OBD_SERIAL_RX) {
+                results += " (Serial OBD receive)";
+            } else if (digitalPins[i] == OBD_SERIAL_TX) {
+                results += " (Serial OBD transmit)";
+            }
+            results += "|";
         }
         results += "|";
         
@@ -362,28 +419,65 @@ public:
         
         // OBD-II Interface Testing
         results += "=== OBD-II INTERFACE TESTING ===|";
-        results += "Testing Serial2 (RX=16, TX=17)...|";
+        results += "Hardware: Freematics ONE+ with SN65HVD230 CAN transceiver|";
+        results += "Primary CAN Bus: GPIO4 (TX), GPIO5 (RX)|";
+        results += "Fallback Serial: GPIO16 (RX), GPIO17 (TX)|";
+        results += "|";
+        
+        // Test CAN bus pins first
+        results += "=== CAN BUS PIN TESTING ===|";
+        pinMode(CAN_TX_PIN, OUTPUT);
+        pinMode(CAN_RX_PIN, INPUT_PULLUP);
+        delay(10);
+        
+        // Test CAN TX pin
+        digitalWrite(CAN_TX_PIN, HIGH);
+        delay(10);
+        bool canTxHigh = digitalRead(CAN_TX_PIN) == HIGH;
+        digitalWrite(CAN_TX_PIN, LOW);
+        delay(10);
+        bool canTxLow = digitalRead(CAN_TX_PIN) == LOW;
+        results += "CAN TX (GPIO4): " + String(canTxHigh && canTxLow ? "FUNCTIONAL" : "FAIL") + "|";
+        
+        // Test CAN RX pin
+        bool canRxState = digitalRead(CAN_RX_PIN);
+        results += "CAN RX (GPIO5): " + String(canRxState ? "HIGH" : "LOW") + " (pullup active)|";
+        results += "|";
+        
+        // Test Serial OBD interface
+        results += "=== SERIAL OBD TESTING ===|";
+        results += "Testing Serial2 interface...|";
         
         // Test multiple baud rates
         int baudRates[] = {9600, 38400, 115200, 230400};
         bool obdResponsive = false;
         
         for (int i = 0; i < 4; i++) {
-            Serial2.begin(baudRates[i], SERIAL_8N1, 16, 17);
+            Serial2.begin(baudRates[i], SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
             delay(100);
+            
+            // Clear buffer
+            while (Serial2.available()) {
+                Serial2.read();
+            }
             
             // Send AT command
             Serial2.println("ATZ");
+            Serial2.flush();
             delay(500);
             
             String response = "";
             unsigned long startTime = millis();
             while (millis() - startTime < 1000 && Serial2.available()) {
-                response += (char)Serial2.read();
+                char c = Serial2.read();
+                if (c >= 32 && c <= 126) { // Printable characters only
+                    response += c;
+                }
             }
             
             if (response.length() > 0) {
                 results += "Baud " + String(baudRates[i]) + ": RESPONSE (" + String(response.length()) + " chars)|";
+                results += "Response: " + response.substring(0, min(20, (int)response.length())) + "|";
                 obdResponsive = true;
             } else {
                 results += "Baud " + String(baudRates[i]) + ": NO RESPONSE|";
@@ -393,7 +487,10 @@ public:
             delay(100);
         }
         
-        results += "OBD Interface: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
+        results += "|";
+        results += "Serial OBD Status: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
+        results += "CAN Bus Status: NOT IMPLEMENTED (requires CAN driver)|";
+        results += "Recommended: Implement ESP32 CAN driver for GPIO4/5|";
         results += "|";
         
         // BLE System Verification
@@ -455,11 +552,19 @@ public:
         #endif
         if (!BLEDevice::getInitialized()) issues++;
         if (!obdResponsive) issues++;
+        if (!canTxHigh || !canTxLow) issues++; // CAN TX pin issue
         
         results += "Issues Found: " + String(issues) + "|";
         results += "Overall Status: " + String(issues == 0 ? "EXCELLENT" : 
                                               issues <= 2 ? "GOOD" : 
                                               issues <= 4 ? "WARNING" : "CRITICAL") + "|";
+        
+        // OBD-II specific status
+        results += "|=== OBD-II COMMUNICATION STATUS ===|";
+        results += "CAN Bus Hardware: " + String((canTxHigh && canTxLow) ? "READY" : "ISSUE") + "|";
+        results += "Serial OBD: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
+        results += "Recommended Protocol: CAN Bus (requires driver implementation)|";
+        results += "Current Fallback: Serial ELM327 emulation|";
         
         // Recommendations
         if (issues > 0) {
@@ -472,7 +577,10 @@ public:
             if (internalTemp > 80) results += "• ESP32 running hot - check ventilation|";
             #endif
             if (!BLEDevice::getInitialized()) results += "• BLE not initialized - restart required|";
-            if (!obdResponsive) results += "• No OBD response - check vehicle connection|";
+            if (!obdResponsive) results += "• No Serial OBD response - check ELM327 adapter|";
+            if (!canTxHigh || !canTxLow) results += "• CAN TX pin issue - check GPIO4 connection|";
+            results += "• Consider implementing ESP32 CAN driver for native OBD-II|";
+            results += "• Verify SN65HVD230 transceiver power and connections|";
         }
         
         return results;
