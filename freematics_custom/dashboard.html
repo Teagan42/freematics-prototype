@@ -1820,106 +1820,6 @@
                 }
             };
 
-            // Helper function to get range indicator text and color
-            const getRangeInfo = (value, type) => {
-                try {
-                    if (value === null || value === undefined || isNaN(value)) {
-                        return { text: 'No data', color: 'info' };
-                    }
-                    
-                    const numValue = Number(value);
-                    if (!isFinite(numValue)) {
-                        return { text: 'Invalid', color: 'info' };
-                    }
-
-                    switch (type) {
-                        case 'rpm':
-                            if (numValue > 6000) return { text: 'Very High', color: 'danger' };
-                            if (numValue > 4000) return { text: 'High', color: 'warning' };
-                            if (numValue > 1000) return { text: 'Normal', color: 'normal' };
-                            return { text: 'Idle', color: 'normal' };
-                        case 'speed':
-                            if (numValue > 80) return { text: 'Very Fast', color: 'danger' };
-                            if (numValue > 60) return { text: 'Fast', color: 'warning' };
-                            if (numValue > 0) return { text: 'Moving', color: 'normal' };
-                            return { text: 'Stopped', color: 'normal' };
-                        case 'coolant':
-                            if (numValue > 220) return { text: 'Overheating', color: 'danger' };
-                            if (numValue > 200) return { text: 'Hot', color: 'warning' };
-                            if (numValue > 160) return { text: 'Normal', color: 'normal' };
-                            return { text: 'Cold', color: 'normal' };
-                        case 'atmospheric':
-                            if (numValue < 950) return { text: 'Very Low (High Alt)', color: 'info' };
-                            if (numValue < 1000) return { text: 'Low Pressure', color: 'info' };
-                            if (numValue > 1040) return { text: 'High Pressure', color: 'info' };
-                            return { text: 'Normal', color: 'normal' };
-                        case 'pressure':
-                            if (numValue < 10) return { text: 'Critical Low', color: 'danger' };
-                            if (numValue < 20) return { text: 'Low', color: 'warning' };
-                            if (numValue > 65) return { text: 'High', color: 'warning' };
-                            return { text: 'Normal', color: 'normal' };
-                        case 'battery':
-                            if (numValue < 11.5) return { text: 'Critical', color: 'danger' };
-                            if (numValue < 12.0) return { text: 'Low', color: 'warning' };
-                            if (numValue > 14.5) return { text: 'High', color: 'warning' };
-                            return { text: 'Good', color: 'normal' };
-                        case 'engineLoad':
-                            if (numValue > 90) return { text: 'Very High', color: 'danger' };
-                            if (numValue > 75) return { text: 'High', color: 'warning' };
-                            if (numValue > 20) return { text: 'Normal', color: 'normal' };
-                            return { text: 'Light', color: 'normal' };
-                        case 'fuelLevel':
-                            if (numValue < 15) return { text: 'Very Low', color: 'danger' };
-                            if (numValue < 25) return { text: 'Low', color: 'warning' };
-                            return { text: 'OK', color: 'normal' };
-                        case 'fuelTrim':
-                            if (Math.abs(numValue) > 15) return { text: 'Problem', color: 'danger' };
-                            if (Math.abs(numValue) > 10) return { text: 'High', color: 'warning' };
-                            return { text: 'Normal', color: 'normal' };
-                        default:
-                            return { text: 'Unknown', color: 'info' };
-                    }
-                } catch (error) {
-                    return { text: 'Error', color: 'info' };
-                }
-            };
-
-            // Helper function to get tooltip content for metrics
-            const getTooltipContent = (type, value) => {
-                const tooltips = {
-                    rpm: `Engine RPM measures crankshaft rotation speed. Normal: 600-900 idle, 1500-4000 driving. Higher RPM = more power but more fuel consumption.`,
-                    speed: `Vehicle speed from transmission/wheel sensors. Measured in miles per hour (mph).`,
-                    coolant: `Engine coolant temperature. Critical for preventing overheating. Normal: 180-220°F. Warning: >220°F. Danger: >240°F.`,
-                    atmosphericPressure: `Atmospheric pressure measured by device barometric sensor. Used for altitude compensation and weather monitoring.
-                                            <br/><strong>Sea Level:</strong> ~1013 mbar (14.7 psi)
-                                            <br/><strong>High Altitude:</strong> Lower pressure
-                                            <br/><strong>Weather:</strong> Varies with conditions`,
-                    enginePressure: `Engine oil pressure from OBD-II system. Critical for engine lubrication.
-                                            <br/><strong>Idle:</strong> 10-25 psi
-                                            <br/><strong>Driving:</strong> 25-65 psi
-                                            <br/><strong>Warning:</strong> &lt;10 psi (potential engine damage)`,
-                    deviceVoltage: `Device input voltage from vehicle's 12V system. Powers the Freematics device and indicates vehicle electrical health.
-                                            <br/><strong>Engine Off:</strong> 12.4-12.8V (good battery)
-                                            <br/><strong>Engine Running:</strong> 13.8-14.4V (charging)
-                                            <br/><strong>Warning:</strong> &lt;12.0V (weak battery/charging issue)`,
-                    batteryVoltage: `Vehicle battery voltage from OBD-II system. May differ from device input voltage due to wiring resistance.
-                                            <br/><strong>Engine Off:</strong> 12.4-12.8V (good battery)
-                                            <br/><strong>Engine Running:</strong> 13.8-14.4V (charging)
-                                            <br/><strong>Warning:</strong> &lt;12.0V (weak battery/charging issue)`,
-                    ambientTemp: `Outside air temperature. Affects engine performance and cooling efficiency. Hot weather reduces power.`,
-                    engineLoad: `How hard the engine works vs maximum capacity. Normal: 20-40% city, 40-70% highway. >85% sustained is high stress.`,
-                    throttlePos: `Throttle valve opening. 0% = closed (idle), 100% = wide open. Normal: 0-20% cruise, 20-80% acceleration.`,
-                    fuelLevel: `Fuel remaining in tank. Warning: <25%. Danger: <15%.`,
-                    intakeTemp: `Air temperature entering engine. Affects combustion efficiency. Normal: 70-120°F. Cooler air provides more power.`,
-                    oilTemp: `Engine oil temperature. Affects viscosity and lubrication. Normal: 180-250°F. Warning: >250°F.`,
-                    fuelPressure: `Fuel rail pressure for injection. Normal: 35-65 psi (varies by engine). Warning: <30 or >70 psi.`,
-                    fuelTrimShort: `Real-time fuel mixture adjustment. Positive = adding fuel, negative = reducing. Normal: -10% to +10%. >±15% indicates problems.`,
-                    fuelTrimLong: `Learned fuel adjustment over time. Shows engine condition. Normal: -10% to +10%. >±15% indicates wear/problems.`,
-                    satellites: `GPS satellites tracked. Minimum: 4 for 3D position. Good: 6-8. Excellent: 9+. More satellites = better accuracy.`
-                };
-                return tooltips[type] || 'No information available for this metric.';
-            };
-
             // Function to send diagnostic data to webhook endpoint
             const sendDiagnosticToWebhook = async (diagnosticResults, currentData, diagnosticStatus = 'SUCCESS') => {
                 try {
@@ -2059,6 +1959,106 @@
                 }
                 
                 return recommendations;
+            };
+
+            // Helper function to get range indicator text and color
+            const getRangeInfo = (value, type) => {
+                try {
+                    if (value === null || value === undefined || isNaN(value)) {
+                        return { text: 'No data', color: 'info' };
+                    }
+                    
+                    const numValue = Number(value);
+                    if (!isFinite(numValue)) {
+                        return { text: 'Invalid', color: 'info' };
+                    }
+
+                    switch (type) {
+                        case 'rpm':
+                            if (numValue > 6000) return { text: 'Very High', color: 'danger' };
+                            if (numValue > 4000) return { text: 'High', color: 'warning' };
+                            if (numValue > 1000) return { text: 'Normal', color: 'normal' };
+                            return { text: 'Idle', color: 'normal' };
+                        case 'speed':
+                            if (numValue > 80) return { text: 'Very Fast', color: 'danger' };
+                            if (numValue > 60) return { text: 'Fast', color: 'warning' };
+                            if (numValue > 0) return { text: 'Moving', color: 'normal' };
+                            return { text: 'Stopped', color: 'normal' };
+                        case 'coolant':
+                            if (numValue > 220) return { text: 'Overheating', color: 'danger' };
+                            if (numValue > 200) return { text: 'Hot', color: 'warning' };
+                            if (numValue > 160) return { text: 'Normal', color: 'normal' };
+                            return { text: 'Cold', color: 'normal' };
+                        case 'atmospheric':
+                            if (numValue < 950) return { text: 'Very Low (High Alt)', color: 'info' };
+                            if (numValue < 1000) return { text: 'Low Pressure', color: 'info' };
+                            if (numValue > 1040) return { text: 'High Pressure', color: 'info' };
+                            return { text: 'Normal', color: 'normal' };
+                        case 'pressure':
+                            if (numValue < 10) return { text: 'Critical Low', color: 'danger' };
+                            if (numValue < 20) return { text: 'Low', color: 'warning' };
+                            if (numValue > 65) return { text: 'High', color: 'warning' };
+                            return { text: 'Normal', color: 'normal' };
+                        case 'battery':
+                            if (numValue < 11.5) return { text: 'Critical', color: 'danger' };
+                            if (numValue < 12.0) return { text: 'Low', color: 'warning' };
+                            if (numValue > 14.5) return { text: 'High', color: 'warning' };
+                            return { text: 'Good', color: 'normal' };
+                        case 'engineLoad':
+                            if (numValue > 90) return { text: 'Very High', color: 'danger' };
+                            if (numValue > 75) return { text: 'High', color: 'warning' };
+                            if (numValue > 20) return { text: 'Normal', color: 'normal' };
+                            return { text: 'Light', color: 'normal' };
+                        case 'fuelLevel':
+                            if (numValue < 15) return { text: 'Very Low', color: 'danger' };
+                            if (numValue < 25) return { text: 'Low', color: 'warning' };
+                            return { text: 'OK', color: 'normal' };
+                        case 'fuelTrim':
+                            if (Math.abs(numValue) > 15) return { text: 'Problem', color: 'danger' };
+                            if (Math.abs(numValue) > 10) return { text: 'High', color: 'warning' };
+                            return { text: 'Normal', color: 'normal' };
+                        default:
+                            return { text: 'Unknown', color: 'info' };
+                    }
+                } catch (error) {
+                    return { text: 'Error', color: 'info' };
+                }
+            };
+
+            // Helper function to get tooltip content for metrics
+            const getTooltipContent = (type, value) => {
+                const tooltips = {
+                    rpm: `Engine RPM measures crankshaft rotation speed. Normal: 600-900 idle, 1500-4000 driving. Higher RPM = more power but more fuel consumption.`,
+                    speed: `Vehicle speed from transmission/wheel sensors. Measured in miles per hour (mph).`,
+                    coolant: `Engine coolant temperature. Critical for preventing overheating. Normal: 180-220°F. Warning: >220°F. Danger: >240°F.`,
+                    atmosphericPressure: `Atmospheric pressure measured by device barometric sensor. Used for altitude compensation and weather monitoring.
+                                            <br/><strong>Sea Level:</strong> ~1013 mbar (14.7 psi)
+                                            <br/><strong>High Altitude:</strong> Lower pressure
+                                            <br/><strong>Weather:</strong> Varies with conditions`,
+                    enginePressure: `Engine oil pressure from OBD-II system. Critical for engine lubrication.
+                                            <br/><strong>Idle:</strong> 10-25 psi
+                                            <br/><strong>Driving:</strong> 25-65 psi
+                                            <br/><strong>Warning:</strong> &lt;10 psi (potential engine damage)`,
+                    deviceVoltage: `Device input voltage from vehicle's 12V system. Powers the Freematics device and indicates vehicle electrical health.
+                                            <br/><strong>Engine Off:</strong> 12.4-12.8V (good battery)
+                                            <br/><strong>Engine Running:</strong> 13.8-14.4V (charging)
+                                            <br/><strong>Warning:</strong> &lt;12.0V (weak battery/charging issue)`,
+                    batteryVoltage: `Vehicle battery voltage from OBD-II system. May differ from device input voltage due to wiring resistance.
+                                            <br/><strong>Engine Off:</strong> 12.4-12.8V (good battery)
+                                            <br/><strong>Engine Running:</strong> 13.8-14.4V (charging)
+                                            <br/><strong>Warning:</strong> &lt;12.0V (weak battery/charging issue)`,
+                    ambientTemp: `Outside air temperature. Affects engine performance and cooling efficiency. Hot weather reduces power.`,
+                    engineLoad: `How hard the engine works vs maximum capacity. Normal: 20-40% city, 40-70% highway. >85% sustained is high stress.`,
+                    throttlePos: `Throttle valve opening. 0% = closed (idle), 100% = wide open. Normal: 0-20% cruise, 20-80% acceleration.`,
+                    fuelLevel: `Fuel remaining in tank. Warning: <25%. Danger: <15%.`,
+                    intakeTemp: `Air temperature entering engine. Affects combustion efficiency. Normal: 70-120°F. Cooler air provides more power.`,
+                    oilTemp: `Engine oil temperature. Affects viscosity and lubrication. Normal: 180-250°F. Warning: >250°F.`,
+                    fuelPressure: `Fuel rail pressure for injection. Normal: 35-65 psi (varies by engine). Warning: <30 or >70 psi.`,
+                    fuelTrimShort: `Real-time fuel mixture adjustment. Positive = adding fuel, negative = reducing. Normal: -10% to +10%. >±15% indicates problems.`,
+                    fuelTrimLong: `Learned fuel adjustment over time. Shows engine condition. Normal: -10% to +10%. >±15% indicates wear/problems.`,
+                    satellites: `GPS satellites tracked. Minimum: 4 for 3D position. Good: 6-8. Excellent: 9+. More satellites = better accuracy.`
+                };
+                return tooltips[type] || 'No information available for this metric.';
             };
 
             // Periodic ping to keep connection alive
