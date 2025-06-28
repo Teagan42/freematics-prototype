@@ -1853,6 +1853,7 @@
                     // Extract diagnostic messages from raw data log
                     const diagnosticMessages = rawDataLog
                         .filter(entry => 
+                            entry.data.includes('🔧 DIAGNOSTIC MESSAGE DETECTED:') ||
                             entry.data.includes('DIAGNOSTIC') || 
                             entry.data.includes('ESP32') ||
                             entry.data.includes('GPIO') ||
