@@ -562,6 +562,7 @@
             const [diagnosticRunning, setDiagnosticRunning] = useState(false);
             const [diagnosticError, setDiagnosticError] = useState(null);
             const [dataParseErrors, setDataParseErrors] = useState([]);
+            const [diagnosticStartLogIndex, setDiagnosticStartLogIndex] = useState(null);
             
             // Expected API version - update this when making breaking changes
             const EXPECTED_API_VERSION = 1;
@@ -1258,6 +1259,9 @@
                             window.diagnosticTimeouts.clear();
                         }
                         
+                        // Mark the start of diagnostic log capture
+                        setDiagnosticStartLogIndex(rawDataLog.length);
+                        
                         setDiagnosticRunning(true);
                         setDiagnosticError(null);
                         setDiagnosticResults('🔄 Diagnostic mode started...\nRunning comprehensive system checks...\nThis may take 10-30 seconds...\n\n');
@@ -1638,6 +1642,9 @@
                             
                             // Special handling for diagnostic commands
                             if (sanitizedCommand === 'DIAGNOSTIC') {
+                                // Mark the start of diagnostic log capture when command is sent
+                                setDiagnosticStartLogIndex(rawDataLog.length);
+                                
                                 setDiagnosticError(null);
                                 setDiagnosticResults('📡 Sending diagnostic command to device...\nWaiting for response...\n\n');
                                 setDiagnosticRunning(true);
@@ -1883,8 +1890,11 @@
                         // Include raw diagnostic messages from the log
                         rawDiagnosticMessages: diagnosticMessages || 'No diagnostic messages captured',
                         
-                        // Include recent raw data log entries for context
-                        recentLogEntries: rawDataLog.slice(-50).map(entry => ({
+                        // Include all log entries from diagnostic start to completion
+                        recentLogEntries: (diagnosticStartLogIndex !== null ? 
+                            rawDataLog.slice(diagnosticStartLogIndex) : 
+                            rawDataLog.slice(-50)
+                        ).map(entry => ({
                             timestamp: entry.timestamp,
                             type: entry.type || 'data',
                             message: entry.data
