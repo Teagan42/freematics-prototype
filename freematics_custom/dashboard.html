@@ -1161,9 +1161,14 @@
                     const rawData = decoder.decode(value);
 
                     console.log('BLE RX:', rawData);
-                    
+                
                     // Clear any previous parse errors on successful decode
                     setDataParseErrors(prev => prev.filter(err => err.type !== 'decode'));
+                
+                    // Special debug logging for diagnostic messages
+                    if (rawData.includes('DIAGNOSTIC')) {
+                        console.log('🔧 DIAGNOSTIC MESSAGE DETECTED:', rawData);
+                    }
 
                 // Add to raw data log with message type detection
                 const logEntry = {
@@ -1208,18 +1213,26 @@
                 // Handle special diagnostic messages that don't follow standard format
                 if (rawData.startsWith('DIAGNOSTIC_RESULTS:')) {
                     const diagnosticData = rawData.substring('DIAGNOSTIC_RESULTS:'.length);
-                    console.log('Processing diagnostic results:', diagnosticData);
+                    console.log('Processing diagnostic results chunk:', diagnosticData);
                     try {
                         if (!diagnosticData || typeof diagnosticData !== 'string') {
                             throw new Error('Invalid diagnostic results format');
                         }
+                        
+                        // Remove any trailing semicolons and clean up the data
+                        let cleanData = diagnosticData.replace(/;$/, '').trim();
+                        
                         // Convert pipe separators to newlines and format properly
-                        const results = diagnosticData.replace(/\|/g, '\n').replace(/\n+/g, '\n').trim();
-                        console.log('Formatted diagnostic results:', results);
+                        const results = cleanData.replace(/\|/g, '\n').replace(/\n+/g, '\n').trim();
+                        console.log('Formatted diagnostic results chunk:', results);
+                        
                         setDiagnosticResults(prev => {
                             const currentResults = prev || '';
-                            const newResults = currentResults + (currentResults ? '\n' : '') + results;
-                            console.log('Setting diagnostic results:', newResults);
+                            // If this is the first chunk, replace; otherwise append
+                            const newResults = currentResults.includes('=== ESP32 SYSTEM INFO ===') ? 
+                                currentResults + '\n' + results : 
+                                (currentResults ? currentResults + '\n' + results : results);
+                            console.log('Updated diagnostic results length:', newResults.length);
                             return newResults;
                         });
                         setDiagnosticError(null);
@@ -1241,10 +1254,12 @@
                     try {
                         setDiagnosticRunning(true);
                         setDiagnosticError(null);
-                        setDiagnosticResults('Diagnostic mode started... Running comprehensive system checks...');
+                        setDiagnosticResults('🔄 Diagnostic mode started...\nRunning comprehensive system checks...\nThis may take 10-30 seconds...\n\n');
                         
                         // Auto-switch to diagnostics tab when diagnostic starts
                         setActiveTab('diagnostics');
+                        
+                        console.log('Diagnostic started, waiting for results...');
                     } catch (diagError) {
                         console.error('Error handling diagnostic start:', diagError);
                         setDiagnosticError('Failed to start diagnostic process');
@@ -1623,17 +1638,19 @@
                             // Special handling for diagnostic commands
                             if (sanitizedCommand === 'DIAGNOSTIC') {
                                 setDiagnosticError(null);
-                                setDiagnosticResults('Sending diagnostic command to device...');
+                                setDiagnosticResults('📡 Sending diagnostic command to device...\nWaiting for response...\n\n');
+                                setDiagnosticRunning(true);
                                 
                                 // Auto-switch to diagnostics tab when command is sent
                                 setActiveTab('diagnostics');
                                 
                                 setTimeout(() => {
                                     if (diagnosticRunning) {
-                                        setDiagnosticError('Diagnostic timeout - no response from device');
+                                        setDiagnosticError('⏰ Diagnostic timeout - no response from device after 45 seconds');
                                         setDiagnosticRunning(false);
+                                        setDiagnosticResults(prev => prev + '\n❌ TIMEOUT: Device did not respond within 45 seconds\n\nPossible causes:\n• Device is not connected\n• Device is busy with other operations\n• BLE connection is unstable\n• Device firmware issue\n\nTry disconnecting and reconnecting, then run diagnostics again.');
                                     }
-                                }, 30000); // 30 second timeout
+                                }, 45000); // 45 second timeout (increased from 30)
                             }
                             
                         } catch (writeError) {
