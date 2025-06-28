@@ -1191,7 +1191,16 @@
                     logEntry.type = 'pong';
                 }
 
-                setRawDataLog(prev => [...prev.slice(-50), logEntry]);
+                setRawDataLog(prev => {
+                    const newLog = [...prev.slice(-50), logEntry];
+                    
+                    // Set diagnostic start index after adding the log entry for diagnostic messages
+                    if (rawData.startsWith('DIAGNOSTIC_STARTED:') || rawData.includes('CMD:DIAGNOSTIC')) {
+                        setDiagnosticStartLogIndex(newLog.length - 1); // Point to the current entry
+                    }
+                    
+                    return newLog;
+                });
 
                 // Handle simple status/heartbeat messages that don't contain sensor data
                 if (rawData.startsWith('HEARTBEAT:') || rawData.startsWith('PONG:') || rawData.startsWith('ERROR:')) {
@@ -1259,8 +1268,7 @@
                             window.diagnosticTimeouts.clear();
                         }
                         
-                        // Mark the start of diagnostic log capture
-                        setDiagnosticStartLogIndex(rawDataLog.length);
+                        // Note: diagnosticStartLogIndex is now set in the setRawDataLog callback above
                         
                         setDiagnosticRunning(true);
                         setDiagnosticError(null);
@@ -1634,16 +1642,24 @@
                             characteristic.writeValue(new TextEncoder().encode(message));
                             console.log('Sent command:', message);
                             
-                            setRawDataLog(prev => [...prev.slice(-50), {
-                                timestamp: new Date().toLocaleTimeString(),
-                                data: 'TX: ' + message,
-                                type: 'tx'
-                            }]);
+                            setRawDataLog(prev => {
+                                const newLog = [...prev.slice(-50), {
+                                    timestamp: new Date().toLocaleTimeString(),
+                                    data: 'TX: ' + message,
+                                    type: 'tx'
+                                }];
+                                
+                                // Set diagnostic start index when sending diagnostic command
+                                if (sanitizedCommand === 'DIAGNOSTIC') {
+                                    setDiagnosticStartLogIndex(newLog.length - 1); // Point to the TX entry
+                                }
+                                
+                                return newLog;
+                            });
                             
                             // Special handling for diagnostic commands
                             if (sanitizedCommand === 'DIAGNOSTIC') {
-                                // Mark the start of diagnostic log capture when command is sent
-                                setDiagnosticStartLogIndex(rawDataLog.length);
+                                // Note: diagnosticStartLogIndex will be set when the TX log entry is added
                                 
                                 setDiagnosticError(null);
                                 setDiagnosticResults('📡 Sending diagnostic command to device...\nWaiting for response...\n\n');
