@@ -2110,8 +2110,9 @@
                             <span className={`range-indicator ${getRangeInfo(data.rpm, 'rpm').color}`}>
                                 {getRangeInfo(data.rpm, 'rpm').text}
                             </span>
-                            {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) && <small style={{color: '#856404'}}>Simulated Data</small>}
-                            {data.dataMode === 'DISABLED' && !clientSimulation.enabled && <small style={{color: '#6c757d'}}>No Data</small>}
+                            <small style={{color: (data.dataMode === 'SIMULATED' || clientSimulation.enabled) ? '#856404' : data.dataMode === 'DISABLED' && !clientSimulation.enabled ? '#6c757d' : 'transparent', minHeight: '1em', display: 'block'}}>
+                                {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) ? 'Simulated Data' : data.dataMode === 'DISABLED' && !clientSimulation.enabled ? 'No Data' : '\u00A0'}
+                            </small>
                             <div className="metric-tooltip">{getTooltipContent('rpm', data.rpm)}</div>
                         </div>
                         <div className="metric-card">
@@ -2120,7 +2121,9 @@
                             <span className={`range-indicator ${getRangeInfo(data.speed, 'speed').color}`}>
                                 {getRangeInfo(data.speed, 'speed').text}
                             </span>
-                            {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <small style={{color: (data.dataMode === 'SIMULATED' || clientSimulation.enabled) ? '#856404' : 'transparent', minHeight: '1em', display: 'block'}}>
+                                {(data.dataMode === 'SIMULATED' || clientSimulation.enabled) ? 'Simulated Data' : '\u00A0'}
+                            </small>
                             <div className="metric-tooltip">{getTooltipContent('speed', data.speed)}</div>
                         </div>
                         <div className="metric-card">
@@ -2129,7 +2132,9 @@
                             <span className={`range-indicator ${getRangeInfo(data.coolant, 'coolant').color}`}>
                                 {getRangeInfo(data.coolant, 'coolant').text}
                             </span>
-                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <small style={{color: data.dataMode === 'SIMULATED' ? '#856404' : 'transparent', minHeight: '1em', display: 'block'}}>
+                                {data.dataMode === 'SIMULATED' ? 'Simulated Data' : '\u00A0'}
+                            </small>
                             <div className="metric-tooltip">{getTooltipContent('coolant', data.coolant)}</div>
                         </div>
                         <div className="metric-card">
@@ -2138,7 +2143,9 @@
                             <span className={`range-indicator ${getRangeInfo(data.enginePressure, 'atmospheric').color}`}>
                                 {getRangeInfo(data.enginePressure, 'atmospheric').text}
                             </span>
-                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <small style={{color: data.dataMode === 'SIMULATED' ? '#856404' : 'transparent', minHeight: '1em', display: 'block'}}>
+                                {data.dataMode === 'SIMULATED' ? 'Simulated Data' : '\u00A0'}
+                            </small>
                             <div className="metric-tooltip">{getTooltipContent('atmosphericPressure', data.enginePressure)}</div>
                         </div>
                         <div className="metric-card">
@@ -2147,7 +2154,9 @@
                             <span className={`range-indicator ${getRangeInfo(data.batteryVoltage, 'battery').color}`}>
                                 {getRangeInfo(data.batteryVoltage, 'battery').text}
                             </span>
-                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <small style={{color: data.dataMode === 'SIMULATED' ? '#856404' : 'transparent', minHeight: '1em', display: 'block'}}>
+                                {data.dataMode === 'SIMULATED' ? 'Simulated Data' : '\u00A0'}
+                            </small>
                             <div className="metric-tooltip">{getTooltipContent('deviceVoltage', data.batteryVoltage)}</div>
                         </div>
                         <div className="metric-card">
@@ -2156,7 +2165,9 @@
                             <span className={`range-indicator ${getRangeInfo(data.ambientTemp, 'ambient').color}`}>
                                 {getRangeInfo(data.ambientTemp, 'ambient').text}
                             </span>
-                            {data.dataMode === 'SIMULATED' && <small style={{color: '#856404'}}>Simulated Data</small>}
+                            <small style={{color: data.dataMode === 'SIMULATED' ? '#856404' : 'transparent', minHeight: '1em', display: 'block'}}>
+                                {data.dataMode === 'SIMULATED' ? 'Simulated Data' : '\u00A0'}
+                            </small>
                             <div className="metric-tooltip">{getTooltipContent('ambientTemp', data.ambientTemp)}</div>
                         </div>
                         <div className="metric-card">
