@@ -9,7 +9,6 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <driver/can.h>
 #include "config.h"
 #include "telestore.h"
 
@@ -222,44 +221,27 @@ public:
     }
     
     bool initCANInterface() {
-        Serial.println("  Initializing ESP32 CAN controller...");
+        Serial.println("  Setting up CAN TX (GPIO4) and RX (GPIO5) pins...");
         
-        // Configure CAN timing for 500kbps (standard OBD-II rate)
-        can_timing_config_t timing_config = CAN_TIMING_CONFIG_500KBITS();
+        // Configure GPIO pins for CAN communication
+        pinMode(CAN_TX_PIN, OUTPUT);
+        pinMode(CAN_RX_PIN, INPUT);
         
-        // Configure CAN filter to accept all messages
-        can_filter_config_t filter_config = CAN_FILTER_CONFIG_ACCEPT_ALL();
+        // Test pin connectivity
+        digitalWrite(CAN_TX_PIN, HIGH);
+        delay(10);
+        bool txPinWorking = digitalRead(CAN_TX_PIN) == HIGH;
         
-        // Configure CAN general settings
-        can_general_config_t general_config = {
-            .mode = CAN_MODE_NORMAL,
-            .tx_io = (gpio_num_t)CAN_TX_PIN,
-            .rx_io = (gpio_num_t)CAN_RX_PIN,
-            .clkout_io = CAN_IO_UNUSED,
-            .bus_off_io = CAN_IO_UNUSED,
-            .tx_queue_len = 10,
-            .rx_queue_len = 10,
-            .alerts_enabled = CAN_ALERT_NONE,
-            .clkout_divider = 0
-        };
+        digitalWrite(CAN_TX_PIN, LOW);
+        delay(10);
+        bool txPinToggle = digitalRead(CAN_TX_PIN) == LOW;
         
-        // Install CAN driver
-        esp_err_t result = can_driver_install(&general_config, &timing_config, &filter_config);
-        if (result != ESP_OK) {
-            Serial.println("  CAN driver install failed: " + String(result));
-            return false;
-        }
+        Serial.println("  CAN TX Pin (GPIO4) test: " + String(txPinWorking && txPinToggle ? "PASS" : "FAIL"));
+        Serial.println("  CAN RX Pin (GPIO5) state: " + String(digitalRead(CAN_RX_PIN) ? "HIGH" : "LOW"));
         
-        // Start CAN driver
-        result = can_start();
-        if (result != ESP_OK) {
-            Serial.println("  CAN start failed: " + String(result));
-            can_driver_uninstall();
-            return false;
-        }
-        
-        Serial.println("  CAN controller initialized successfully");
-        return true;
+        // CAN driver not available in this Arduino Core version
+        Serial.println("  CAN driver not available - using Serial fallback only");
+        return false;
     }
     
     bool sendATCommand(const String& command, const String& expectedResponse, unsigned long timeout) {
@@ -570,22 +552,25 @@ public:
         results += "Fallback Serial: GPIO16 (RX), GPIO17 (TX)|";
         results += "|";
         
-        // Test CAN controller status
-        results += "=== CAN CONTROLLER STATUS ===|";
+        // Test CAN bus pins
+        results += "=== CAN BUS PIN TESTING ===|";
+        pinMode(CAN_TX_PIN, OUTPUT);
+        pinMode(CAN_RX_PIN, INPUT_PULLUP);
+        delay(10);
         
-        can_status_info_t status_info;
-        esp_err_t status_result = can_get_status_info(&status_info);
+        // Test CAN TX pin
+        digitalWrite(CAN_TX_PIN, HIGH);
+        delay(10);
+        bool canTxHigh = digitalRead(CAN_TX_PIN) == HIGH;
+        digitalWrite(CAN_TX_PIN, LOW);
+        delay(10);
+        bool canTxLow = digitalRead(CAN_TX_PIN) == LOW;
+        results += "CAN TX (GPIO4): " + String(canTxHigh && canTxLow ? "FUNCTIONAL" : "FAIL") + "|";
         
-        if (status_result == ESP_OK) {
-            results += "CAN Driver: INSTALLED|";
-            results += "CAN State: " + String(status_info.state == CAN_STATE_RUNNING ? "RUNNING" : 
-                                             status_info.state == CAN_STATE_STOPPED ? "STOPPED" :
-                                             status_info.state == CAN_STATE_BUS_OFF ? "BUS_OFF" : "UNKNOWN") + "|";
-            results += "TX Errors: " + String(status_info.tx_error_counter) + "|";
-            results += "RX Errors: " + String(status_info.rx_error_counter) + "|";
-        } else {
-            results += "CAN Driver: NOT INSTALLED|";
-        }
+        // Test CAN RX pin
+        bool canRxState = digitalRead(CAN_RX_PIN);
+        results += "CAN RX (GPIO5): " + String(canRxState ? "HIGH" : "LOW") + " (pullup active)|";
+        results += "CAN Driver: NOT AVAILABLE (Arduino Core 3.2.0)|";
         results += "|";
         
         // Test Serial OBD interface
@@ -965,46 +950,7 @@ private:
     }
     
     bool attemptCANOBDRead(uint8_t pid, int& value) {
-        // Prepare OBD-II CAN message
-        can_message_t tx_msg = {
-            .identifier = 0x7DF,  // OBD-II functional address
-            .flags = CAN_MSG_FLAG_NONE,
-            .data_length_code = 8,
-            .data = {0x02, 0x01, pid, 0x00, 0x00, 0x00, 0x00, 0x00}
-        };
-        
-        // Send request
-        esp_err_t result = can_transmit(&tx_msg, pdMS_TO_TICKS(100));
-        if (result != ESP_OK) {
-            return false;
-        }
-        
-        // Wait for response
-        can_message_t rx_msg;
-        unsigned long startTime = millis();
-        while (millis() - startTime < 1000) {
-            result = can_receive(&rx_msg, pdMS_TO_TICKS(50));
-            if (result == ESP_OK) {
-                // Check if this is an OBD response (7E8-7EF range)
-                if (rx_msg.identifier >= 0x7E8 && rx_msg.identifier <= 0x7EF) {
-                    // Check if it's a positive response to our PID
-                    if (rx_msg.data_length_code >= 3 && 
-                        rx_msg.data[1] == 0x41 && 
-                        rx_msg.data[2] == pid) {
-                        
-                        // Extract data bytes for parsing
-                        String dataBytes = "";
-                        for (int i = 3; i < rx_msg.data_length_code; i++) {
-                            if (rx_msg.data[i] < 0x10) dataBytes += "0";
-                            dataBytes += String(rx_msg.data[i], HEX);
-                        }
-                        
-                        return parseOBDResponse(pid, dataBytes, value);
-                    }
-                }
-            }
-        }
-        
+        // CAN driver not available in this Arduino Core version
         return false;
     }
     
