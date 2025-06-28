@@ -11,6 +11,7 @@
 #include <BLE2902.h>
 #if USE_FREEMATICS_LIBRARY
 #include "FreematicsPlus/FreematicsPlus.h"
+#include "FreematicsPlus/FreematicsOBD.h"
 #endif
 #if USE_FALLBACK_CAN
 #include <CAN.h>
@@ -18,26 +19,10 @@
 #include "config.h"
 #include "telestore.h"
 
-// Define FreematicsPlus types and constants if library not available
+// Use FreematicsPlus library types when available
 #if USE_FREEMATICS_LIBRARY
-#ifndef FREEMATICSPLUS_H
-// Fallback definitions if FreematicsPlus library is not properly included
-class FreematicsESP32 {
-public:
-    bool begin() { return false; }
-    void* link = nullptr;
-};
-
-class COBD {
-public:
-    void begin(void* link) {}
-    bool init(int protocol) { return false; }
-    bool readPID(uint8_t pid, int& value) { return false; }
-};
-
-#define PROTO_ISO15765_11B_500K 6
-#define PROTO_ISO15765_29B_500K 7
-#endif
+// FreematicsPlus library should provide these classes
+// No fallback definitions needed when library is properly included
 #endif
 
 // working states
@@ -109,7 +94,7 @@ private:
     bool obdInitialized = false;
     
 #if USE_FREEMATICS_LIBRARY
-    FreematicsESP32 sys;
+    CFreematicsESP32 sys;
     COBD obd;
 #endif
     
@@ -171,13 +156,13 @@ public:
         
         // Initialize OBD library
         Serial.print("Initializing OBD library...");
-        obd.begin(sys.link);
+        obd.begin(&sys);
         Serial.println("OK");
         
         // Initialize CAN bus protocol
         Serial.print("Connecting to CAN bus (ISO15765 11-bit 500K)...");
         int attempts = 0;
-        while (!obd.init(PROTO_ISO15765_11B_500K) && attempts < 10) {
+        while (!obd.init(OBD_PROTOCOL_ISO15765_11B_500K) && attempts < 10) {
             Serial.print('.');
             delay(1000);
             attempts++;
@@ -191,7 +176,7 @@ public:
             // Try alternative protocols
             Serial.print("Trying ISO15765 29-bit 500K...");
             attempts = 0;
-            while (!obd.init(PROTO_ISO15765_29B_500K) && attempts < 5) {
+            while (!obd.init(OBD_PROTOCOL_ISO15765_29B_500K) && attempts < 5) {
                 Serial.print('.');
                 delay(1000);
                 attempts++;
