@@ -18,6 +18,28 @@
 #include "config.h"
 #include "telestore.h"
 
+// Define FreematicsPlus types and constants if library not available
+#if USE_FREEMATICS_LIBRARY
+#ifndef FREEMATICSPLUS_H
+// Fallback definitions if FreematicsPlus library is not properly included
+class FreematicsESP32 {
+public:
+    bool begin() { return false; }
+    void* link = nullptr;
+};
+
+class COBD {
+public:
+    void begin(void* link) {}
+    bool init(int protocol) { return false; }
+    bool readPID(uint8_t pid, int& value) { return false; }
+};
+
+#define PROTO_ISO15765_11B_500K 6
+#define PROTO_ISO15765_29B_500K 7
+#endif
+#endif
+
 // working states
 #define STATE_STORAGE_READY 0x1
 #define STATE_OBD_READY 0x2
