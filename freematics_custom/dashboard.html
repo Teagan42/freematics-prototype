@@ -1648,8 +1648,14 @@
                                 const timeoutId = setTimeout(() => {
                                     setDiagnosticRunning(prevRunning => {
                                         if (prevRunning) {
+                                            const timeoutMessage = '\n❌ TIMEOUT: Device did not respond within 45 seconds\n\nPossible causes:\n• Device is not connected\n• Device is busy with other operations\n• BLE connection is unstable\n• Device firmware issue\n\nTry disconnecting and reconnecting, then run diagnostics again.';
                                             setDiagnosticError('⏰ Diagnostic timeout - no response from device after 45 seconds');
-                                            setDiagnosticResults(prev => prev + '\n❌ TIMEOUT: Device did not respond within 45 seconds\n\nPossible causes:\n• Device is not connected\n• Device is busy with other operations\n• BLE connection is unstable\n• Device firmware issue\n\nTry disconnecting and reconnecting, then run diagnostics again.');
+                                            setDiagnosticResults(prev => {
+                                                const updatedResults = prev + timeoutMessage;
+                                                // Send timeout diagnostic data to webhook
+                                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data, 'TIMEOUT'), 100);
+                                                return updatedResults;
+                                            });
                                             return false;
                                         }
                                         return prevRunning;
