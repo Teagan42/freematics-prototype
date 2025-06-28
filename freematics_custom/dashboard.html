@@ -2007,23 +2007,8 @@
                         console.warn('Failed to read logs from localStorage, using in-memory logs:', storageError);
                     }
                     
-                    // Extract diagnostic messages from raw data log
+                    // Include all diagnostic messages from raw data log without filtering
                     const diagnosticMessages = currentRawDataLog
-                        .filter(entry => 
-                            entry.data.includes('🔧 DIAGNOSTIC MESSAGE DETECTED:') ||
-                            entry.data.includes('DIAGNOSTIC') || 
-                            entry.data.includes('ESP32') ||
-                            entry.data.includes('GPIO') ||
-                            entry.data.includes('ADC') ||
-                            entry.data.includes('I2C') ||
-                            entry.data.includes('SPI') ||
-                            entry.data.includes('OBD') ||
-                            entry.data.includes('BLE') ||
-                            entry.data.includes('SYSTEM') ||
-                            entry.data.includes('VOLTAGE') ||
-                            entry.data.includes('MEMORY') ||
-                            entry.data.includes('HEAP')
-                        )
                         .map(entry => `${entry.timestamp}: ${entry.data}`)
                         .join('\n');
 
