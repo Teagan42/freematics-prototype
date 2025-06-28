@@ -1707,36 +1707,60 @@
                 const baseRpm = 1500 + Math.sin(elapsed * 0.1) * 300;
                 const baseSpeed = 60 + Math.sin(elapsed * 0.05) * 15;
                 const isHighPerformance = Math.random() > 0.7; // 30% chance of high performance mode
+                const isIdling = baseRpm < 1200;
+                const isHighLoad = Math.sin(elapsed * 0.08) > 0.5;
                 
                 return {
+                    // Core engine parameters
                     rpm: Math.round(baseRpm + (Math.random() - 0.5) * 200),
                     speed: Math.round(baseSpeed + (Math.random() - 0.5) * 10),
                     coolant: Math.round(185 + (Math.random() - 0.5) * 10), // °F
                     engineLoad: Math.round(25 + Math.sin(elapsed * 0.08) * 15 + (Math.random() - 0.5) * 10),
                     throttlePos: Math.round(20 + Math.sin(elapsed * 0.12) * 10 + (Math.random() - 0.5) * 8),
+                    
+                    // Fuel system parameters
                     fuelLevel: Math.round(75 + (Math.random() - 0.5) * 5),
-                    batteryVoltage: 14.2 + (Math.random() - 0.5) * 0.4,
-                    ambientTemp: Math.round(72 + (Math.random() - 0.5) * 10), // °F
-                    enginePressure: Math.round(35 + (Math.random() - 0.5) * 8),
-                    intakeTemp: Math.round(95 + (Math.random() - 0.5) * 15), // °F
-                    oilTemp: Math.round(210 + (Math.random() - 0.5) * 20), // °F
-                    exhaustTemp: Math.round(800 + (Math.random() - 0.5) * 100), // °F
                     fuelPressure: Math.round(45 + (Math.random() - 0.5) * 8),
                     fuelTrimShort: Math.round((Math.random() - 0.5) * 10),
                     fuelTrimLong: Math.round((Math.random() - 0.5) * 6),
-                    fuelRate: 8 + (Math.random() - 0.5) * 3,
-                    mafFlow: 15 + Math.sin(elapsed * 0.1) * 5 + (Math.random() - 0.5) * 2,
+                    fuelRate: isIdling ? 2 + Math.random() : 8 + (Math.random() - 0.5) * 3,
+                    
+                    // Air flow and emissions
+                    mafFlow: isIdling ? 3 + Math.random() * 2 : 15 + Math.sin(elapsed * 0.1) * 5 + (Math.random() - 0.5) * 2,
                     o2Voltage: 0.45 + (Math.random() - 0.5) * 0.2,
-                    catalystTemp: Math.round(750 + (Math.random() - 0.5) * 100), // °F
-                    boostPressure: isHighPerformance ? Math.round(8 + (Math.random() - 0.5) * 6) : Math.round((Math.random()) * 2), // Realistic boost
-                    turboRpm: isHighPerformance ? Math.round(80000 + (Math.random() - 0.5) * 40000) : 0, // Realistic turbo RPM
+                    
+                    // Temperature parameters
+                    intakeTemp: Math.round(95 + (Math.random() - 0.5) * 15), // °F
+                    oilTemp: Math.round(210 + (Math.random() - 0.5) * 20), // °F
+                    exhaustTemp: Math.round(800 + (isHighLoad ? 200 : 0) + (Math.random() - 0.5) * 100), // °F
+                    catalystTemp: Math.round(750 + (isHighLoad ? 150 : 0) + (Math.random() - 0.5) * 100), // °F
+                    ambientTemp: Math.round(72 + (Math.random() - 0.5) * 10), // °F
+                    
+                    // Electrical and pressure
+                    batteryVoltage: 14.2 + (Math.random() - 0.5) * 0.4,
+                    enginePressure: Math.round(35 + (Math.random() - 0.5) * 8), // Atmospheric pressure in mbar
+                    
+                    // Turbo/boost parameters
+                    boostPressure: isHighPerformance ? Math.round(8 + (Math.random() - 0.5) * 6) : Math.round((Math.random()) * 2),
+                    turboRpm: isHighPerformance ? Math.round(80000 + (Math.random() - 0.5) * 40000) : Math.round(Math.random() * 20000),
+                    
+                    // GPS data
                     gps: {
                         lat: 37.7749 + (Math.random() - 0.5) * 0.01,
                         lng: -122.4194 + (Math.random() - 0.5) * 0.01,
                         satellites: 7 + Math.round((Math.random() - 0.5) * 4)
                     },
+                    
+                    // System status
                     timestamp: now,
-                    dataMode: 'SIMULATED'
+                    dataMode: 'SIMULATED',
+                    systemStatus: {
+                        OBD: 'SIMULATED',
+                        GPS: 'OK',
+                        STORAGE: 'OK',
+                        BLE: 'OK'
+                    },
+                    apiVersion: 1
                 };
             };
 
