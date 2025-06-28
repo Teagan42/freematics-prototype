@@ -1277,11 +1277,20 @@
                         if (status === 'SUCCESS') {
                             setDiagnosticResults(prev => (prev || '') + '\n\n✅ Diagnostic completed successfully!');
                             setDiagnosticError(null);
+                            
+                            // Send diagnostic data to webhook endpoint
+                            sendDiagnosticToWebhook(diagnosticResults, data);
                         } else if (status === 'FAILED' || status === 'ERROR') {
                             setDiagnosticResults(prev => (prev || '') + '\n\n❌ Diagnostic completed with errors!');
                             setDiagnosticError('Diagnostic process completed with errors');
+                            
+                            // Send diagnostic data even on failure for troubleshooting
+                            sendDiagnosticToWebhook(diagnosticResults, data, 'FAILED');
                         } else {
                             setDiagnosticResults(prev => (prev || '') + '\n\n⚠️ Diagnostic completed with unknown status: ' + status);
+                            
+                            // Send diagnostic data with unknown status
+                            sendDiagnosticToWebhook(diagnosticResults, data, 'UNKNOWN');
                         }
                     } catch (diagError) {
                         console.error('Error handling diagnostic completion:', diagError);
@@ -1903,6 +1912,147 @@
                     satellites: `GPS satellites tracked. Minimum: 4 for 3D position. Good: 6-8. Excellent: 9+. More satellites = better accuracy.`
                 };
                 return tooltips[type] || 'No information available for this metric.';
+            };
+
+            // Function to send diagnostic data to webhook endpoint
+            const sendDiagnosticToWebhook = async (diagnosticResults, currentData, diagnosticStatus = 'SUCCESS') => {
+                try {
+                    // Prepare webhook payload matching the expected format
+                    const webhookPayload = {
+                        deviceId: device?.name || 'FreematicsCustom_' + (device?.id?.substring(0, 8) || 'Unknown'),
+                        deviceName: device?.name || 'FreematicsCustom',
+                        timestamp: new Date().toISOString(),
+                        diagnosticType: 'hardware_diagnostic',
+                        diagnosticStatus: diagnosticStatus,
+                        issuesFound: countDiagnosticIssues(diagnosticResults),
+                        diagnosticResults: diagnosticResults || 'No diagnostic data available',
+                        
+                        // System health summary from current data
+                        systemHealth: {
+                            engineLoad: currentData.engineLoad || 0,
+                            coolantTemp: currentData.coolant || 0,
+                            batteryVoltage: currentData.batteryVoltage || 0,
+                            fuelLevel: currentData.fuelLevel || 0
+                        },
+                        
+                        // Power analysis
+                        powerAnalysis: {
+                            inputVoltage: currentData.batteryVoltage || 0,
+                            powerSource: currentData.batteryVoltage > 11 ? 'Vehicle Power' : 
+                                        currentData.batteryVoltage > 4.5 ? 'USB Power' : 'Unknown',
+                            voltageStatus: currentData.batteryVoltage > 12 ? 'OK' : 'LOW',
+                            rail3v3: 'OK' // Assume OK if we're getting data
+                        },
+                        
+                        // Hardware status from system status
+                        hardwareStatus: {
+                            bleStatus: currentData.systemStatus?.BLE || 'OK',
+                            obdStatus: currentData.systemStatus?.OBD || currentData.dataMode || 'UNKNOWN',
+                            gpsStatus: currentData.systemStatus?.GPS || 'OK',
+                            storageStatus: currentData.systemStatus?.STORAGE || 'OK'
+                        },
+                        
+                        // Generate recommendations based on diagnostic results and current data
+                        recommendations: generateDiagnosticRecommendations(diagnosticResults, currentData)
+                    };
+                    
+                    console.log('Sending diagnostic data to webhook:', webhookPayload);
+                    
+                    // Send POST request to webhook endpoint
+                    const response = await fetch('/hookers/honey', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(webhookPayload)
+                    });
+                    
+                    if (response.ok) {
+                        console.log('Diagnostic data sent to webhook successfully');
+                        setRawDataLog(prev => [...prev.slice(-50), {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: '📡 Diagnostic data sent to webhook endpoint successfully',
+                            type: 'system'
+                        }]);
+                    } else {
+                        console.error('Failed to send diagnostic data to webhook:', response.status, response.statusText);
+                        setRawDataLog(prev => [...prev.slice(-50), {
+                            timestamp: new Date().toLocaleTimeString(),
+                            data: `❌ Webhook failed: ${response.status} ${response.statusText}`,
+                            type: 'error'
+                        }]);
+                    }
+                } catch (error) {
+                    console.error('Error sending diagnostic data to webhook:', error);
+                    setRawDataLog(prev => [...prev.slice(-50), {
+                        timestamp: new Date().toLocaleTimeString(),
+                        data: `❌ Webhook error: ${error.message}`,
+                        type: 'error'
+                    }]);
+                }
+            };
+            
+            // Function to count diagnostic issues from results text
+            const countDiagnosticIssues = (diagnosticText) => {
+                if (!diagnosticText) return 0;
+                
+                let issueCount = 0;
+                const lowerText = diagnosticText.toLowerCase();
+                
+                // Count various issue indicators
+                issueCount += (lowerText.match(/fail/g) || []).length;
+                issueCount += (lowerText.match(/error/g) || []).length;
+                issueCount += (lowerText.match(/warning/g) || []).length;
+                issueCount += (lowerText.match(/critical/g) || []).length;
+                issueCount += (lowerText.match(/no response/g) || []).length;
+                
+                return issueCount;
+            };
+            
+            // Function to generate recommendations based on diagnostic results
+            const generateDiagnosticRecommendations = (diagnosticText, currentData) => {
+                const recommendations = [];
+                
+                if (!diagnosticText) return recommendations;
+                
+                const lowerText = diagnosticText.toLowerCase();
+                
+                // Power-related recommendations
+                if (currentData.batteryVoltage < 12.0) {
+                    recommendations.push('Check vehicle battery and charging system');
+                }
+                
+                // OBD-related recommendations
+                if (lowerText.includes('no response') && lowerText.includes('obd')) {
+                    recommendations.push('Check OBD-II cable connection and vehicle ignition');
+                }
+                
+                if (lowerText.includes('can') && lowerText.includes('fail')) {
+                    recommendations.push('Verify CAN bus wiring and SN65HVD230 transceiver');
+                }
+                
+                // Memory recommendations
+                if (lowerText.includes('memory') && lowerText.includes('low')) {
+                    recommendations.push('Restart device to free memory');
+                }
+                
+                // Temperature recommendations
+                if (lowerText.includes('hot') || lowerText.includes('temperature')) {
+                    recommendations.push('Check device ventilation and ambient temperature');
+                }
+                
+                // BLE recommendations
+                if (lowerText.includes('ble') && lowerText.includes('fail')) {
+                    recommendations.push('Restart device to reinitialize Bluetooth');
+                }
+                
+                // Generic recommendations if no specific issues found
+                if (recommendations.length === 0 && lowerText.includes('fail')) {
+                    recommendations.push('Review diagnostic details for specific component issues');
+                    recommendations.push('Check all cable connections and power supply');
+                }
+                
+                return recommendations;
             };
 
             // Periodic ping to keep connection alive
