@@ -174,8 +174,9 @@ public:
     
     bool initOBDInterface() {
 #if USE_FREEMATICS_LIBRARY
-        Serial.println("=== FREEMATICS OBD-II INITIALIZATION ===");
+        Serial.println("=== FREEMATICS OBD-II INITIALIZATION (PRIMARY) ===");
         Serial.println("Hardware: Freematics ONE+ with co-processor");
+        Serial.println("Priority: HIGHEST - Dedicated OBD co-processor");
         Serial.println("Using FreematicsPlus library for CAN communication");
         
         // Initialize Freematics co-processor
@@ -228,8 +229,10 @@ public:
         return true;
         
 #elif USE_FALLBACK_CAN
-        Serial.println("=== FALLBACK CAN OBD-II INITIALIZATION ===");
+        Serial.println("=== FALLBACK CAN OBD-II INITIALIZATION (TERTIARY) ===");
         Serial.println("Hardware: ESP32 with direct CAN controller");
+        Serial.println("Priority: LOWEST - Direct CAN fallback only");
+        Serial.println("Note: Freematics co-processor preferred when available");
         Serial.println("Using Arduino CAN library");
         
         // Initialize CAN bus
@@ -253,8 +256,9 @@ public:
         return true;
         
 #elif USE_SERIAL_OBD
-        Serial.println("=== SERIAL OBD-II INITIALIZATION ===");
+        Serial.println("=== SERIAL OBD-II INITIALIZATION (SECONDARY) ===");
         Serial.println("Hardware: ELM327 compatible adapter");
+        Serial.println("Priority: MEDIUM - Serial fallback when co-processor unavailable");
         Serial.println("Using Serial communication");
         
         return initSerialOBDInterface();
@@ -733,7 +737,15 @@ public:
         results += "|";
         results += "Serial OBD Status: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
         results += "CAN Bus Status: NOT IMPLEMENTED (requires CAN driver)|";
-        results += "Recommended: Implement ESP32 CAN driver for GPIO4/5|";
+        
+        // Prioritize Freematics ONE+ co-processor interface
+#if USE_FREEMATICS_LIBRARY
+        results += "PRIMARY: Freematics ONE+ co-processor interface ENABLED|";
+        results += "Recommended: Use Freematics co-processor for optimal performance|";
+#else
+        results += "PRIMARY: Freematics ONE+ co-processor interface DISABLED|";
+        results += "Fallback: Consider ESP32 CAN driver for GPIO4/5 if co-processor unavailable|";
+#endif
         results += "|";
         
         // BLE System Verification
@@ -803,24 +815,60 @@ public:
                                               issues <= 2 ? "GOOD" : 
                                               issues <= 4 ? "WARNING" : "CRITICAL") + "|";
         
-        // OBD-II specific status
+        // OBD-II specific status - prioritize Freematics ONE+
         results += "|=== OBD-II COMMUNICATION STATUS ===|";
+        results += "PRIORITY ORDER: 1=Freematics Co-processor, 2=Serial OBD, 3=Direct CAN|";
+        
 #if USE_FREEMATICS_LIBRARY
-        results += "FreematicsPlus Library: ENABLED|";
-        results += "Co-processor Status: " + String(obdInitialized ? "READY" : "FAILED") + "|";
+        results += "1. FreematicsPlus Library: ENABLED (PRIMARY)|";
+        results += "   Co-processor Status: " + String(obdInitialized ? "READY" : "FAILED") + "|";
+        if (obdInitialized) {
+            results += "   Authority: HIGHEST - Using co-processor for OBD communication|";
+        }
+#else
+        results += "1. FreematicsPlus Library: DISABLED|";
 #endif
-#if USE_FALLBACK_CAN
-        results += "Fallback CAN: ENABLED|";
-        results += "CAN Hardware: " + String((canTxHigh && canTxLow) ? "READY" : "ISSUE") + "|";
-#endif
+
 #if USE_SERIAL_OBD
-        results += "Serial OBD: ENABLED|";
-        results += "ELM327 Response: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
+        results += "2. Serial OBD: ENABLED (SECONDARY)|";
+        results += "   ELM327 Response: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
+#if USE_FREEMATICS_LIBRARY
+        if (obdInitialized) {
+            results += "   Status: STANDBY (Co-processor has priority)|";
+        } else {
+            results += "   Status: " + String(obdResponsive ? "ACTIVE FALLBACK" : "UNAVAILABLE") + "|";
+        }
 #endif
+#else
+        results += "2. Serial OBD: DISABLED|";
+#endif
+
+#if USE_FALLBACK_CAN
+        results += "3. Fallback CAN: ENABLED (TERTIARY)|";
+        results += "   CAN Hardware: " + String((canTxHigh && canTxLow) ? "READY" : "ISSUE") + "|";
+#if USE_FREEMATICS_LIBRARY || USE_SERIAL_OBD
+        results += "   Status: STANDBY (Higher priority methods available)|";
+#endif
+#else
+        results += "3. Fallback CAN: DISABLED|";
+#endif
+
 #if !USE_FREEMATICS_LIBRARY && !USE_FALLBACK_CAN && !USE_SERIAL_OBD
         results += "All OBD Methods: DISABLED|";
 #endif
-        results += "Active Method: " + String(realOBDAvailable ? "CONNECTED" : "DISCONNECTED") + "|";
+        
+        results += "|Current Active Method: ";
+#if USE_FREEMATICS_LIBRARY
+        if (obdInitialized && realOBDAvailable) {
+            results += "FREEMATICS CO-PROCESSOR|";
+        } else if (obdInitialized) {
+            results += "FREEMATICS CO-PROCESSOR (No vehicle connection)|";
+        } else {
+            results += String(realOBDAvailable ? "FALLBACK METHOD" : "DISCONNECTED") + "|";
+        }
+#else
+        results += String(realOBDAvailable ? "FALLBACK METHOD" : "DISCONNECTED") + "|";
+#endif
         
         // Recommendations
         if (issues > 0) {
@@ -835,7 +883,13 @@ public:
             if (!BLEDevice::getInitialized()) results += "• BLE not initialized - restart required|";
             if (!obdResponsive) results += "• No Serial OBD response - check ELM327 adapter|";
             if (!canTxHigh || !canTxLow) results += "• CAN TX pin issue - check GPIO4 connection|";
-            results += "• Consider implementing ESP32 CAN driver for native OBD-II|";
+#if USE_FREEMATICS_LIBRARY
+            if (!obdInitialized) {
+                results += "• Check Freematics ONE+ co-processor connection and power|";
+                results += "• Verify co-processor firmware is properly loaded|";
+            }
+#endif
+            results += "• Freematics co-processor is preferred over direct CAN|";
             results += "• Verify SN65HVD230 transceiver power and connections|";
         }
         
