@@ -89,6 +89,10 @@
             text-align: center;
             position: relative;
             cursor: help;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         
         @media (prefers-color-scheme: dark) {
@@ -102,6 +106,12 @@
             font-weight: bold;
             margin: 10px 0;
             transition: color 0.3s ease;
+            min-height: 1.2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-variant-numeric: tabular-nums;
+            font-family: 'Courier New', monospace;
         }
         .metric-value.normal { color: #28a745; }
         .metric-value.warning { color: #ffc107; }
@@ -397,6 +407,10 @@
             border: 1px solid #dee2e6;
             position: relative;
             cursor: help;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         
         @media (prefers-color-scheme: dark) {
@@ -416,6 +430,12 @@
             font-size: 1.8em;
             font-weight: bold;
             margin: 5px 0;
+            min-height: 1.1em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-variant-numeric: tabular-nums;
+            font-family: 'Courier New', monospace;
         }
         .compact-label {
             color: #6c757d;
@@ -1203,10 +1223,16 @@
                             return newResults;
                         });
                         setDiagnosticError(null);
+                        
+                        // Auto-switch to diagnostics tab when results arrive
+                        setActiveTab('diagnostics');
                     } catch (diagError) {
                         console.error('Error processing diagnostic results:', diagError);
                         setDiagnosticError('Failed to process diagnostic results: ' + diagError.message);
                         setDiagnosticResults(prev => (prev || '') + '\n❌ Error processing results: ' + diagError.message);
+                        
+                        // Auto-switch to diagnostics tab even on error
+                        setActiveTab('diagnostics');
                     }
                     return; // Don't process as sensor data
                 }
@@ -1216,9 +1242,15 @@
                         setDiagnosticRunning(true);
                         setDiagnosticError(null);
                         setDiagnosticResults('Diagnostic mode started... Running comprehensive system checks...');
+                        
+                        // Auto-switch to diagnostics tab when diagnostic starts
+                        setActiveTab('diagnostics');
                     } catch (diagError) {
                         console.error('Error handling diagnostic start:', diagError);
                         setDiagnosticError('Failed to start diagnostic process');
+                        
+                        // Auto-switch to diagnostics tab even on error
+                        setActiveTab('diagnostics');
                     }
                     return; // Don't process as sensor data
                 }
@@ -1591,6 +1623,11 @@
                             // Special handling for diagnostic commands
                             if (sanitizedCommand === 'DIAGNOSTIC') {
                                 setDiagnosticError(null);
+                                setDiagnosticResults('Sending diagnostic command to device...');
+                                
+                                // Auto-switch to diagnostics tab when command is sent
+                                setActiveTab('diagnostics');
+                                
                                 setTimeout(() => {
                                     if (diagnosticRunning) {
                                         setDiagnosticError('Diagnostic timeout - no response from device');
