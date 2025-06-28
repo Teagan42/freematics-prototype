@@ -1357,34 +1357,6 @@
                                         dataUpdates.ambientTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
                                         hasSensorData = true;
                                         break;
-                                    case 'OIL_TEMP':
-                                        dataUpdates.oilTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
-                                        hasSensorData = true;
-                                        break;
-                                    case 'EXHAUST_TEMP':
-                                        dataUpdates.exhaustTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
-                                        hasSensorData = true;
-                                        break;
-                                    case 'FUEL_PRESSURE':
-                                        dataUpdates.fuelPressure = parseInt(value) || 0;
-                                        hasSensorData = true;
-                                        break;
-                                    case 'FUEL_RATE':
-                                        dataUpdates.fuelRate = (parseInt(value) || 0) / 100; // Convert from cL/h to L/h
-                                        hasSensorData = true;
-                                        break;
-                                    case 'CATALYST_TEMP':
-                                        dataUpdates.catalystTemp = Math.round(((parseInt(value) || 0) * 9/5) + 32);
-                                        hasSensorData = true;
-                                        break;
-                                    case 'BOOST_PRESSURE':
-                                        dataUpdates.boostPressure = parseInt(value) || 0;
-                                        hasSensorData = true;
-                                        break;
-                                    case 'TURBO_RPM':
-                                        dataUpdates.turboRpm = parseInt(value) || 0;
-                                        hasSensorData = true;
-                                        break;
                                     case 'ENGINE_LOAD':
                                         dataUpdates.engineLoad = parseInt(value) || 0;
                                         hasSensorData = true;
