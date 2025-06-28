@@ -19,10 +19,44 @@
 #include "config.h"
 #include "telestore.h"
 
-// Use FreematicsPlus library types when available
+// Define FreematicsPlus types and constants - always provide fallbacks
 #if USE_FREEMATICS_LIBRARY
-// FreematicsPlus library should provide these classes
-// No fallback definitions needed when library is properly included
+// Try to use FreematicsPlus library, but provide fallbacks for missing definitions
+
+// OBD protocol constants (define if not provided by library)
+#ifndef OBD_PROTOCOL_ISO15765_11B_500K
+#define OBD_PROTOCOL_ISO15765_11B_500K 6
+#endif
+#ifndef OBD_PROTOCOL_ISO15765_29B_500K  
+#define OBD_PROTOCOL_ISO15765_29B_500K 7
+#endif
+
+// Class definitions (define if not provided by library)
+#ifndef FREEMATICSPLUS_H
+class CFreematicsESP32 {
+public:
+    bool begin() { 
+        Serial.println("  Using fallback CFreematicsESP32 implementation");
+        return true; 
+    }
+    void* link = nullptr;
+};
+
+class COBD {
+public:
+    void begin(void* sys) {
+        Serial.println("  Using fallback COBD implementation");
+    }
+    bool init(int protocol) { 
+        Serial.println("  Fallback OBD init for protocol " + String(protocol));
+        return false; 
+    }
+    bool readPID(uint8_t pid, int& value) { 
+        return false; 
+    }
+};
+#endif
+
 #endif
 
 // working states
