@@ -9,6 +9,7 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include "FreematicsPlus/FreematicsPlus.h"
 #include "config.h"
 #include "telestore.h"
 
@@ -79,6 +80,8 @@ private:
     String lastError = "";
     unsigned long lastErrorTime = 0;
     bool obdInitialized = false;
+    FreematicsESP32 sys;
+    COBD obd;
     
 public:
     bool init() { 
@@ -121,102 +124,64 @@ public:
     }
     
     bool initOBDInterface() {
-        Serial.println("=== OBD-II INTERFACE INITIALIZATION ===");
-        Serial.println("Hardware: Freematics ONE+ with SN65HVD230 CAN transceiver");
-        Serial.println("Primary: CAN Bus (GPIO4=TX, GPIO5=RX)");
-        Serial.println("Fallback: Serial ELM327 (GPIO16=RX, GPIO17=TX)");
+        Serial.println("=== FREEMATICS OBD-II INITIALIZATION ===");
+        Serial.println("Hardware: Freematics ONE+ with co-processor");
+        Serial.println("Using FreematicsPlus library for CAN communication");
         
-        // Try CAN bus interface first (primary method for Freematics ONE+)
-        Serial.print("Initializing CAN bus interface (GPIO4/5)...");
-        if (initCANInterface()) {
-            Serial.println("SUCCESS");
-            return true;
+        // Initialize Freematics co-processor
+        Serial.print("Initializing co-processor...");
+        if (!sys.begin()) {
+            Serial.println("FAILED");
+            lastError = "Co-processor initialization failed";
+            lastErrorTime = millis();
+            return false;
         }
-        Serial.println("FAILED");
+        Serial.println("OK");
         
-        // Try UART-based OBD interface as fallback (ELM327 style)
-        Serial.print("Initializing Serial OBD interface (GPIO16/17)...");
-        Serial2.begin(38400, SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
-        delay(100);
+        // Initialize OBD library
+        Serial.print("Initializing OBD library...");
+        if (!obd.begin(sys.link)) {
+            Serial.println("FAILED");
+            lastError = "OBD library initialization failed";
+            lastErrorTime = millis();
+            return false;
+        }
+        Serial.println("OK");
         
-        // Clear any existing data
-        while (Serial2.available()) {
-            Serial2.read();
+        // Initialize CAN bus protocol
+        Serial.print("Connecting to CAN bus (ISO15765 11-bit 500K)...");
+        int attempts = 0;
+        while (!obd.init(PROTO_ISO15765_11B_500K) && attempts < 10) {
+            Serial.print('.');
+            delay(1000);
+            attempts++;
         }
         
-        // Send AT commands for ELM327-style initialization
-        Serial.println("  Attempting ELM327 initialization sequence...");
-        
-        // Step 1: Reset and wait for any response (ELM327, v1.5, etc.)
-        if (sendATCommandFlexible("ATZ", 3000)) {
-            delay(1000); // ELM327 needs time after reset
+        if (attempts >= 10) {
+            Serial.println("FAILED");
+            lastError = "CAN bus initialization timeout";
+            lastErrorTime = millis();
             
-            // Step 2: Turn off echo
-            if (sendATCommand("ATE0", "OK", 1000)) {
-                delay(100);
-                
-                // Step 3: Turn off line feeds  
-                if (sendATCommand("ATL0", "OK", 1000)) {
-                    delay(100);
-                    
-                    // Step 4: Turn off spaces (optional, some adapters don't support)
-                    sendATCommand("ATS0", "OK", 500); // Don't fail if not supported
-                    delay(100);
-                    
-                    // Step 5: Set headers on for better debugging
-                    if (sendATCommand("ATH1", "OK", 1000)) {
-                        delay(100);
-                        
-                        // Step 6: Set automatic protocol detection
-                        if (sendATCommand("ATSP0", "OK", 1000)) {
-                            delay(100);
-                            
-                            // Step 7: Test basic OBD communication
-                            if (testOBDCommunication()) {
-                                Serial.println("  ELM327-style interface ready and tested");
-                                return true;
-                            } else {
-                                Serial.println("  ELM327 initialized but OBD communication failed");
-                                return true; // Still return true as interface is ready
-                            }
-                        }
-                    }
-                }
+            // Try alternative protocols
+            Serial.print("Trying ISO15765 29-bit 500K...");
+            attempts = 0;
+            while (!obd.init(PROTO_ISO15765_29B_500K) && attempts < 5) {
+                Serial.print('.');
+                delay(1000);
+                attempts++;
+            }
+            
+            if (attempts >= 5) {
+                Serial.println("FAILED");
+                lastError = "All CAN protocols failed";
+                lastErrorTime = millis();
+                return false;
             }
         }
         
-        // Try different baud rates for Serial OBD interface
-        int baudRates[] = {38400, 9600, 115200, 57600, 19200};
-        for (int i = 0; i < 5; i++) {
-            Serial.println("  Testing baud rate: " + String(baudRates[i]));
-            Serial2.begin(baudRates[i], SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
-            delay(200); // Give more time for baud rate to stabilize
-            
-            // Clear buffer
-            while (Serial2.available()) {
-                Serial2.read();
-            }
-            
-            // Try ELM327 reset command with flexible response
-            if (sendATCommandFlexible("ATZ", 3000)) {
-                delay(1000); // Wait for ELM327 to fully initialize
-                
-                // Try to turn off echo to confirm communication
-                if (sendATCommand("ATE0", "OK", 1000)) {
-                    Serial.println("  Serial OBD interface ready at " + String(baudRates[i]));
-                    return true;
-                } else {
-                    Serial.println("  Got response to ATZ but failed ATE0 at " + String(baudRates[i]));
-                }
-            } else {
-                Serial.println("  No response to ATZ at " + String(baudRates[i]));
-            }
-            
-            Serial2.end();
-            delay(100);
-        }
+        Serial.println("OK");
+        return true;
         
-        Serial.println("No Serial OBD interface detected");
         return false;
     }
     
@@ -941,16 +906,13 @@ private:
             return false;
         }
         
-        // Try CAN first, then fall back to Serial
-        if (attemptCANOBDRead(pid, value)) {
+        // Use FreematicsPlus OBD library
+        if (obd.readPID(pid, value)) {
             return true;
         }
         
-        return attemptSerialOBDRead(pid, value);
-    }
-    
-    bool attemptCANOBDRead(uint8_t pid, int& value) {
-        // CAN driver not available in this Arduino Core version
+        lastError = "OBD read failed for PID 0x" + String(pid, HEX);
+        lastErrorTime = millis();
         return false;
     }
     
