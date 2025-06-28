@@ -1850,6 +1850,25 @@
             // Function to send diagnostic data to webhook endpoint
             const sendDiagnosticToWebhook = async (diagnosticResults, currentData, diagnosticStatus = 'SUCCESS') => {
                 try {
+                    // Extract diagnostic messages from raw data log
+                    const diagnosticMessages = rawDataLog
+                        .filter(entry => 
+                            entry.data.includes('DIAGNOSTIC') || 
+                            entry.data.includes('ESP32') ||
+                            entry.data.includes('GPIO') ||
+                            entry.data.includes('ADC') ||
+                            entry.data.includes('I2C') ||
+                            entry.data.includes('SPI') ||
+                            entry.data.includes('OBD') ||
+                            entry.data.includes('BLE') ||
+                            entry.data.includes('SYSTEM') ||
+                            entry.data.includes('VOLTAGE') ||
+                            entry.data.includes('MEMORY') ||
+                            entry.data.includes('HEAP')
+                        )
+                        .map(entry => `${entry.timestamp}: ${entry.data}`)
+                        .join('\n');
+
                     // Prepare webhook payload matching the expected format
                     const webhookPayload = {
                         deviceId: device?.name || 'FreematicsCustom_' + (device?.id?.substring(0, 8) || 'Unknown'),
@@ -1859,6 +1878,16 @@
                         diagnosticStatus: diagnosticStatus,
                         issuesFound: countDiagnosticIssues(diagnosticResults),
                         diagnosticResults: diagnosticResults || 'No diagnostic data available',
+                        
+                        // Include raw diagnostic messages from the log
+                        rawDiagnosticMessages: diagnosticMessages || 'No diagnostic messages captured',
+                        
+                        // Include recent raw data log entries for context
+                        recentLogEntries: rawDataLog.slice(-50).map(entry => ({
+                            timestamp: entry.timestamp,
+                            type: entry.type || 'data',
+                            message: entry.data
+                        })),
                         
                         // System health summary from current data
                         systemHealth: {
