@@ -1992,8 +1992,20 @@
             // Function to send diagnostic data to webhook endpoint
             const sendDiagnosticToWebhook = async (diagnosticResults, currentData, diagnosticStatus = 'SUCCESS') => {
                 try {
-                    // Get the current raw data log state to ensure we have the latest entries
-                    const currentRawDataLog = rawDataLog;
+                    // Query localStorage for the most up-to-date log data
+                    let currentRawDataLog = rawDataLog;
+                    try {
+                        const savedLogs = localStorage.getItem('freematics_raw_data_log');
+                        if (savedLogs) {
+                            const parsedLogs = JSON.parse(savedLogs);
+                            if (Array.isArray(parsedLogs) && parsedLogs.length > currentRawDataLog.length) {
+                                console.log('Using localStorage logs for webhook (more complete):', parsedLogs.length, 'vs', currentRawDataLog.length);
+                                currentRawDataLog = parsedLogs;
+                            }
+                        }
+                    } catch (storageError) {
+                        console.warn('Failed to read logs from localStorage, using in-memory logs:', storageError);
+                    }
                     
                     // Extract diagnostic messages from raw data log
                     const diagnosticMessages = currentRawDataLog
