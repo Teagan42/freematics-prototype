@@ -9,7 +9,12 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#if USE_FREEMATICS_LIBRARY
 #include "FreematicsPlus/FreematicsPlus.h"
+#endif
+#if USE_FALLBACK_CAN
+#include <CAN.h>
+#endif
 #include "config.h"
 #include "telestore.h"
 
@@ -80,8 +85,11 @@ private:
     String lastError = "";
     unsigned long lastErrorTime = 0;
     bool obdInitialized = false;
+    
+#if USE_FREEMATICS_LIBRARY
     FreematicsESP32 sys;
     COBD obd;
+#endif
     
 public:
     bool init() { 
@@ -124,6 +132,7 @@ public:
     }
     
     bool initOBDInterface() {
+#if USE_FREEMATICS_LIBRARY
         Serial.println("=== FREEMATICS OBD-II INITIALIZATION ===");
         Serial.println("Hardware: Freematics ONE+ with co-processor");
         Serial.println("Using FreematicsPlus library for CAN communication");
@@ -176,6 +185,46 @@ public:
         
         Serial.println("OK");
         return true;
+        
+#elif USE_FALLBACK_CAN
+        Serial.println("=== FALLBACK CAN OBD-II INITIALIZATION ===");
+        Serial.println("Hardware: ESP32 with direct CAN controller");
+        Serial.println("Using Arduino CAN library");
+        
+        // Initialize CAN bus
+        Serial.print("Initializing CAN bus (500 kbps)...");
+        
+        // Set CAN pins for ESP32
+        CAN.setPins(CAN_RX_PIN, CAN_TX_PIN);
+        
+        if (!CAN.begin(500E3)) {
+            Serial.println("FAILED");
+            lastError = "CAN bus initialization failed";
+            lastErrorTime = millis();
+            return false;
+        }
+        
+        Serial.println("OK");
+        
+        // Set up CAN filters for OBD-II responses (7E8-7EF)
+        CAN.filter(0x7E8, 0x7F8); // Standard OBD-II response range
+        
+        return true;
+        
+#elif USE_SERIAL_OBD
+        Serial.println("=== SERIAL OBD-II INITIALIZATION ===");
+        Serial.println("Hardware: ELM327 compatible adapter");
+        Serial.println("Using Serial communication");
+        
+        return initSerialOBDInterface();
+        
+#else
+        Serial.println("=== OBD-II DISABLED ===");
+        Serial.println("All OBD communication methods disabled in config");
+        lastError = "OBD communication disabled in configuration";
+        lastErrorTime = millis();
+        return false;
+#endif
     }
     
     bool initCANInterface() {
@@ -505,9 +554,21 @@ public:
         
         // OBD-II Interface Testing
         results += "=== OBD-II INTERFACE TESTING ===|";
-        results += "Hardware: Freematics ONE+ with SN65HVD230 CAN transceiver|";
-        results += "Primary CAN Bus: GPIO4 (TX), GPIO5 (RX)|";
-        results += "Fallback Serial: GPIO16 (RX), GPIO17 (TX)|";
+#if USE_FREEMATICS_LIBRARY
+        results += "Mode: FreematicsPlus Library|";
+        results += "Hardware: Freematics ONE+ with co-processor|";
+#elif USE_FALLBACK_CAN
+        results += "Mode: Fallback CAN Implementation|";
+        results += "Hardware: ESP32 with direct CAN controller|";
+#elif USE_SERIAL_OBD
+        results += "Mode: Serial ELM327 Communication|";
+        results += "Hardware: ELM327 compatible adapter|";
+#else
+        results += "Mode: DISABLED|";
+        results += "Hardware: No OBD communication enabled|";
+#endif
+        results += "CAN Bus Pins: GPIO4 (TX), GPIO5 (RX)|";
+        results += "Serial Pins: GPIO16 (RX), GPIO17 (TX)|";
         results += "|";
         
         // Test CAN bus pins
@@ -703,10 +764,22 @@ public:
         
         // OBD-II specific status
         results += "|=== OBD-II COMMUNICATION STATUS ===|";
-        results += "CAN Bus Hardware: " + String((canTxHigh && canTxLow) ? "READY" : "ISSUE") + "|";
-        results += "Serial OBD: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
-        results += "Recommended Protocol: CAN Bus (requires driver implementation)|";
-        results += "Current Fallback: Serial ELM327 emulation|";
+#if USE_FREEMATICS_LIBRARY
+        results += "FreematicsPlus Library: ENABLED|";
+        results += "Co-processor Status: " + String(obdInitialized ? "READY" : "FAILED") + "|";
+#endif
+#if USE_FALLBACK_CAN
+        results += "Fallback CAN: ENABLED|";
+        results += "CAN Hardware: " + String((canTxHigh && canTxLow) ? "READY" : "ISSUE") + "|";
+#endif
+#if USE_SERIAL_OBD
+        results += "Serial OBD: ENABLED|";
+        results += "ELM327 Response: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
+#endif
+#if !USE_FREEMATICS_LIBRARY && !USE_FALLBACK_CAN && !USE_SERIAL_OBD
+        results += "All OBD Methods: DISABLED|";
+#endif
+        results += "Active Method: " + String(realOBDAvailable ? "CONNECTED" : "DISCONNECTED") + "|";
         
         // Recommendations
         if (issues > 0) {
@@ -899,16 +972,135 @@ private:
             return false;
         }
         
+#if USE_FREEMATICS_LIBRARY
         // Use FreematicsPlus OBD library
         if (obd.readPID(pid, value)) {
             return true;
         }
         
-        lastError = "OBD read failed for PID 0x" + String(pid, HEX);
+        lastError = "FreematicsPlus OBD read failed for PID 0x" + String(pid, HEX);
+        lastErrorTime = millis();
+        return false;
+        
+#elif USE_FALLBACK_CAN
+        // Use fallback CAN implementation
+        return sendCANOBDRequest(pid, value);
+        
+#elif USE_SERIAL_OBD
+        // Use Serial OBD implementation
+        return attemptSerialOBDRead(pid, value);
+        
+#else
+        lastError = "No OBD communication method enabled";
+        lastErrorTime = millis();
+        return false;
+#endif
+    }
+    
+#if USE_FALLBACK_CAN
+    bool sendCANOBDRequest(uint8_t pid, int& value) {
+        // OBD-II CAN frame format:
+        // ID: 0x7DF (functional request) or 0x7E0-0x7E7 (physical request)
+        // Data: [Length, Mode, PID, 0x55, 0x55, 0x55, 0x55, 0x55]
+        
+        uint8_t requestData[8] = {0x02, 0x01, pid, 0x55, 0x55, 0x55, 0x55, 0x55};
+        
+        // Send request
+        CAN.beginPacket(0x7DF); // Functional request ID
+        CAN.write(requestData, 8);
+        if (!CAN.endPacket()) {
+            lastError = "Failed to send CAN request for PID 0x" + String(pid, HEX);
+            lastErrorTime = millis();
+            return false;
+        }
+        
+        // Wait for response
+        unsigned long startTime = millis();
+        while (millis() - startTime < 1000) { // 1 second timeout
+            int packetSize = CAN.parsePacket();
+            
+            if (packetSize > 0) {
+                uint32_t canId = CAN.packetId();
+                
+                // Check if this is an OBD-II response (0x7E8-0x7EF)
+                if (canId >= 0x7E8 && canId <= 0x7EF) {
+                    uint8_t responseData[8];
+                    int bytesRead = 0;
+                    
+                    while (CAN.available() && bytesRead < 8) {
+                        responseData[bytesRead++] = CAN.read();
+                    }
+                    
+                    // Parse OBD response: [Length, Mode+0x40, PID, Data...]
+                    if (bytesRead >= 3 && responseData[1] == 0x41 && responseData[2] == pid) {
+                        // Extract data bytes for parsing
+                        String dataBytes = "";
+                        for (int i = 3; i < bytesRead; i++) {
+                            if (responseData[i] < 0x10) dataBytes += "0";
+                            dataBytes += String(responseData[i], HEX);
+                        }
+                        
+                        return parseOBDResponse(pid, dataBytes, value);
+                    }
+                }
+            }
+            delay(10);
+        }
+        
+        lastError = "CAN OBD timeout for PID 0x" + String(pid, HEX);
         lastErrorTime = millis();
         return false;
     }
-    
+#endif
+
+#if USE_SERIAL_OBD
+    bool initSerialOBDInterface() {
+        // Try UART-based OBD interface (ELM327 style)
+        Serial.print("Initializing Serial OBD interface (GPIO16/17)...");
+        Serial2.begin(38400, SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
+        delay(100);
+        
+        // Clear any existing data
+        while (Serial2.available()) {
+            Serial2.read();
+        }
+        
+        // Send AT commands for ELM327-style initialization
+        Serial.println("  Attempting ELM327 initialization sequence...");
+        
+        // Step 1: Reset and wait for any response (ELM327, v1.5, etc.)
+        if (sendATCommandFlexible("ATZ", 3000)) {
+            delay(1000); // ELM327 needs time after reset
+            
+            // Step 2: Turn off echo
+            if (sendATCommand("ATE0", "OK", 1000)) {
+                delay(100);
+                
+                // Step 3: Turn off line feeds  
+                if (sendATCommand("ATL0", "OK", 1000)) {
+                    delay(100);
+                    
+                    // Step 4: Set automatic protocol detection
+                    if (sendATCommand("ATSP0", "OK", 1000)) {
+                        delay(100);
+                        
+                        // Step 5: Test basic OBD communication
+                        if (testOBDCommunication()) {
+                            Serial.println("  ELM327-style interface ready and tested");
+                            return true;
+                        } else {
+                            Serial.println("  ELM327 initialized but OBD communication failed");
+                            return true; // Still return true as interface is ready
+                        }
+                    }
+                }
+            }
+        }
+        
+        Serial.println("Serial OBD interface initialization failed");
+        return false;
+    }
+
     bool attemptSerialOBDRead(uint8_t pid, int& value) {
         // Format OBD-II request: Mode 01 (current data) + PID
         String obdRequest = "01";
