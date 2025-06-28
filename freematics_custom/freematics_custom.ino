@@ -342,7 +342,19 @@ public:
         float vinVoltage = (vinRaw / 4095.0) * 3.3 * 6.0; // 6:1 voltage divider
         results += "VIN Raw ADC: " + String(vinRaw) + " (0-4095)|";
         results += "VIN Voltage: " + String(vinVoltage, 2) + "V|";
-        results += "VIN Status: " + String((vinVoltage > 11.0 && vinVoltage < 16.0) ? "OK" : "WARNING") + "|";
+        
+        // Adjust status check for different power sources
+        String vinStatus;
+        if (vinVoltage > 11.0 && vinVoltage < 16.0) {
+            vinStatus = "OK (Vehicle Power)";
+        } else if (vinVoltage > 4.5 && vinVoltage < 6.0) {
+            vinStatus = "OK (USB Power)";
+        } else if (vinVoltage > 6.0 && vinVoltage < 11.0) {
+            vinStatus = "OK (External Adapter)";
+        } else {
+            vinStatus = "WARNING (Check Power Source)";
+        }
+        results += "VIN Status: " + vinStatus + "|";
         results += "3.3V Rail: " + String(analogRead(36) > 100 ? "OK" : "FAIL") + "|";
         results += "|";
         
@@ -542,9 +554,10 @@ public:
         // System Health Summary
         results += "=== SYSTEM HEALTH SUMMARY ===|";
         
-        // Count issues
+        // Count issues (adjust power supply check)
         int issues = 0;
-        if (vinVoltage < 11.0 || vinVoltage > 16.0) issues++;
+        // Only flag power as issue if voltage is dangerously low or high
+        if (vinVoltage < 4.0 || vinVoltage > 16.0) issues++;
         if (ESP.getFreeHeap() < 50000) issues++;
         if (heapUsage > 80) issues++;
         #ifdef SOC_TEMP_SENSOR_SUPPORTED
@@ -569,7 +582,7 @@ public:
         // Recommendations
         if (issues > 0) {
             results += "|=== RECOMMENDATIONS ===|";
-            if (vinVoltage < 11.0) results += "• Check vehicle battery - voltage too low|";
+            if (vinVoltage < 4.0) results += "• Power supply voltage critically low - check connections|";
             if (vinVoltage > 16.0) results += "• Check charging system - voltage too high|";
             if (ESP.getFreeHeap() < 50000) results += "• Memory low - restart device|";
             if (heapUsage > 80) results += "• High memory usage - check for leaks|";
@@ -581,6 +594,19 @@ public:
             if (!canTxHigh || !canTxLow) results += "• CAN TX pin issue - check GPIO4 connection|";
             results += "• Consider implementing ESP32 CAN driver for native OBD-II|";
             results += "• Verify SN65HVD230 transceiver power and connections|";
+        }
+        
+        // Add power source information
+        results += "|=== POWER SOURCE ANALYSIS ===|";
+        if (vinVoltage > 11.0 && vinVoltage < 16.0) {
+            results += "• Connected to vehicle 12V system|";
+            results += "• Ready for OBD-II communication|";
+        } else if (vinVoltage > 4.5 && vinVoltage < 6.0) {
+            results += "• Powered via USB (development/testing mode)|";
+            results += "• OBD-II requires vehicle connection for real data|";
+        } else if (vinVoltage > 6.0 && vinVoltage < 11.0) {
+            results += "• External power adapter detected|";
+            results += "• Verify power source compatibility|";
         }
         
         return results;
@@ -1541,18 +1567,24 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                 } else if (command == "PING") {
                     Serial.println("Ping received via BLE");
                     
-                    // Send pong response
+                    // Send pong response with message counter
                     if (pCharacteristic) {
-                        String response = String(millis()) + ",PONG:OK;";
+                        static uint32_t pingMessageCounter = 2000; // Start high to avoid conflicts
+                        pingMessageCounter++;
+                        String response = String(pingMessageCounter) + ":" + String(millis()) + ",PONG:OK;";
                         pCharacteristic->setValue(response.c_str());
                         pCharacteristic->notify();
                     }
                 } else if (command == "DIAGNOSTIC" && logger) {
                     Serial.println("Diagnostic mode requested via BLE");
                     
+                    // Get access to message counter (we'll use a static counter for diagnostic messages)
+                    static uint32_t diagnosticMessageCounter = 1000; // Start high to avoid conflicts
+                    
                     // Send diagnostic started message
                     if (pCharacteristic) {
-                        String startMsg = String(millis()) + ",DIAGNOSTIC_STARTED:RUNNING;";
+                        diagnosticMessageCounter++;
+                        String startMsg = String(diagnosticMessageCounter) + ":" + String(millis()) + ",DIAGNOSTIC_STARTED:RUNNING;";
                         pCharacteristic->setValue(startMsg.c_str());
                         pCharacteristic->notify();
                         delay(100);
@@ -1573,21 +1605,24 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                             int end = min(start + chunkSize, (int)diagnosticResults.length());
                             String chunk = diagnosticResults.substring(start, end);
                             
-                            String chunkMsg = String(millis()) + ",DIAGNOSTIC_RESULTS:" + chunk + ";";
+                            diagnosticMessageCounter++;
+                            String chunkMsg = String(diagnosticMessageCounter) + ":" + String(millis()) + ",DIAGNOSTIC_RESULTS:" + chunk + ";";
                             pCharacteristic->setValue(chunkMsg.c_str());
                             pCharacteristic->notify();
                             delay(200); // Allow time for transmission
                         }
                     } else {
                         // Send as single message
-                        String resultMsg = String(millis()) + ",DIAGNOSTIC_RESULTS:" + diagnosticResults + ";";
+                        diagnosticMessageCounter++;
+                        String resultMsg = String(diagnosticMessageCounter) + ":" + String(millis()) + ",DIAGNOSTIC_RESULTS:" + diagnosticResults + ";";
                         pCharacteristic->setValue(resultMsg.c_str());
                         pCharacteristic->notify();
                         delay(100);
                     }
                     
                     // Send completion message
-                    String completeMsg = String(millis()) + ",DIAGNOSTIC_COMPLETE:SUCCESS;";
+                    diagnosticMessageCounter++;
+                    String completeMsg = String(diagnosticMessageCounter) + ":" + String(millis()) + ",DIAGNOSTIC_COMPLETE:SUCCESS;";
                     pCharacteristic->setValue(completeMsg.c_str());
                     pCharacteristic->notify();
                 }
