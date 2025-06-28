@@ -1275,22 +1275,28 @@
                     try {
                         setDiagnosticRunning(false);
                         if (status === 'SUCCESS') {
-                            setDiagnosticResults(prev => (prev || '') + '\n\n✅ Diagnostic completed successfully!');
+                            setDiagnosticResults(prev => {
+                                const updatedResults = (prev || '') + '\n\n✅ Diagnostic completed successfully!';
+                                // Send diagnostic data to webhook endpoint with updated results
+                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data), 100);
+                                return updatedResults;
+                            });
                             setDiagnosticError(null);
-                            
-                            // Send diagnostic data to webhook endpoint
-                            sendDiagnosticToWebhook(diagnosticResults, data);
                         } else if (status === 'FAILED' || status === 'ERROR') {
-                            setDiagnosticResults(prev => (prev || '') + '\n\n❌ Diagnostic completed with errors!');
+                            setDiagnosticResults(prev => {
+                                const updatedResults = (prev || '') + '\n\n❌ Diagnostic completed with errors!';
+                                // Send diagnostic data even on failure for troubleshooting
+                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data, 'FAILED'), 100);
+                                return updatedResults;
+                            });
                             setDiagnosticError('Diagnostic process completed with errors');
-                            
-                            // Send diagnostic data even on failure for troubleshooting
-                            sendDiagnosticToWebhook(diagnosticResults, data, 'FAILED');
                         } else {
-                            setDiagnosticResults(prev => (prev || '') + '\n\n⚠️ Diagnostic completed with unknown status: ' + status);
-                            
-                            // Send diagnostic data with unknown status
-                            sendDiagnosticToWebhook(diagnosticResults, data, 'UNKNOWN');
+                            setDiagnosticResults(prev => {
+                                const updatedResults = (prev || '') + '\n\n⚠️ Diagnostic completed with unknown status: ' + status;
+                                // Send diagnostic data with unknown status
+                                setTimeout(() => sendDiagnosticToWebhook(updatedResults, data, 'UNKNOWN'), 100);
+                                return updatedResults;
+                            });
                         }
                     } catch (diagError) {
                         console.error('Error handling diagnostic completion:', diagError);
