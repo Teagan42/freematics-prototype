@@ -145,20 +145,39 @@ public:
         }
         
         // Send AT commands for ELM327-style initialization
-        if (sendATCommand("ATZ", "ELM327", 2000)) { // Reset
-            delay(500);
-            if (sendATCommand("ATE0", "OK", 1000)) { // Echo off
+        Serial.println("  Attempting ELM327 initialization sequence...");
+        
+        // Step 1: Reset and wait for any response (ELM327, v1.5, etc.)
+        if (sendATCommandFlexible("ATZ", 3000)) {
+            delay(1000); // ELM327 needs time after reset
+            
+            // Step 2: Turn off echo
+            if (sendATCommand("ATE0", "OK", 1000)) {
                 delay(100);
-                if (sendATCommand("ATL0", "OK", 1000)) { // Linefeeds off
+                
+                // Step 3: Turn off line feeds  
+                if (sendATCommand("ATL0", "OK", 1000)) {
                     delay(100);
-                    if (sendATCommand("ATS0", "OK", 1000)) { // Spaces off
+                    
+                    // Step 4: Turn off spaces (optional, some adapters don't support)
+                    sendATCommand("ATS0", "OK", 500); // Don't fail if not supported
+                    delay(100);
+                    
+                    // Step 5: Set headers on for better debugging
+                    if (sendATCommand("ATH1", "OK", 1000)) {
                         delay(100);
-                        if (sendATCommand("ATH1", "OK", 1000)) { // Headers on
+                        
+                        // Step 6: Set automatic protocol detection
+                        if (sendATCommand("ATSP0", "OK", 1000)) {
                             delay(100);
-                            if (sendATCommand("ATSP0", "OK", 1000)) { // Auto protocol
-                                delay(100);
-                                Serial.println("ELM327-style interface ready");
+                            
+                            // Step 7: Test basic OBD communication
+                            if (testOBDCommunication()) {
+                                Serial.println("  ELM327-style interface ready and tested");
                                 return true;
+                            } else {
+                                Serial.println("  ELM327 initialized but OBD communication failed");
+                                return true; // Still return true as interface is ready
                             }
                         }
                     }
@@ -167,22 +186,34 @@ public:
         }
         
         // Try different baud rates for Serial OBD interface
-        int baudRates[] = {115200, 500000, 250000, 38400, 9600};
+        int baudRates[] = {38400, 9600, 115200, 57600, 19200};
         for (int i = 0; i < 5; i++) {
             Serial.println("  Testing baud rate: " + String(baudRates[i]));
             Serial2.begin(baudRates[i], SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
-            delay(100);
+            delay(200); // Give more time for baud rate to stabilize
             
             // Clear buffer
             while (Serial2.available()) {
                 Serial2.read();
             }
             
-            // Try simple initialization
-            if (sendATCommand("ATZ", "OK", 1000)) {
-                Serial.println("Serial OBD interface ready at " + String(baudRates[i]));
-                return true;
+            // Try ELM327 reset command with flexible response
+            if (sendATCommandFlexible("ATZ", 3000)) {
+                delay(1000); // Wait for ELM327 to fully initialize
+                
+                // Try to turn off echo to confirm communication
+                if (sendATCommand("ATE0", "OK", 1000)) {
+                    Serial.println("  Serial OBD interface ready at " + String(baudRates[i]));
+                    return true;
+                } else {
+                    Serial.println("  Got response to ATZ but failed ATE0 at " + String(baudRates[i]));
+                }
+            } else {
+                Serial.println("  No response to ATZ at " + String(baudRates[i]));
             }
+            
+            Serial2.end();
+            delay(100);
         }
         
         Serial.println("No Serial OBD interface detected");
@@ -219,27 +250,79 @@ public:
     }
     
     bool sendATCommand(const String& command, const String& expectedResponse, unsigned long timeout) {
+        return sendATCommandWithResponse(command, expectedResponse, timeout, nullptr);
+    }
+    
+    bool sendATCommandFlexible(const String& command, unsigned long timeout) {
         // Clear input buffer
         while (Serial2.available()) {
             Serial2.read();
         }
         
+        Serial.println("    Sending: " + command);
+        
         // Send command
-        Serial2.println(command);
+        Serial2.print(command + "\r");
         Serial2.flush();
         
-        // Wait for response
+        // Wait for any response
         String response = "";
         unsigned long startTime = millis();
+        bool gotResponse = false;
         
         while (millis() - startTime < timeout) {
             if (Serial2.available()) {
                 char c = Serial2.read();
                 if (c == '\r' || c == '\n') {
                     if (response.length() > 0) {
+                        gotResponse = true;
                         break;
                     }
-                } else {
+                } else if (c >= 32 && c <= 126) { // Printable characters only
+                    response += c;
+                }
+            }
+            delay(1);
+        }
+        
+        response.trim();
+        Serial.println("    Response: " + (response.length() > 0 ? response : "NO RESPONSE"));
+        
+        // Accept any reasonable response (ELM327, v1.5, OK, etc.)
+        return gotResponse && response.length() > 0;
+    }
+    
+    bool sendATCommandWithResponse(const String& command, const String& expectedResponse, unsigned long timeout, String* actualResponse) {
+        // Clear input buffer
+        while (Serial2.available()) {
+            Serial2.read();
+        }
+        
+        Serial.println("    Sending: " + command + " (expecting: " + expectedResponse + ")");
+        
+        // Send command with proper termination
+        Serial2.print(command + "\r");
+        Serial2.flush();
+        
+        // Wait for response
+        String response = "";
+        unsigned long startTime = millis();
+        bool foundPrompt = false;
+        
+        while (millis() - startTime < timeout && !foundPrompt) {
+            if (Serial2.available()) {
+                char c = Serial2.read();
+                
+                if (c == '>') {
+                    // ELM327 prompt - end of response
+                    foundPrompt = true;
+                    break;
+                } else if (c == '\r' || c == '\n') {
+                    if (response.length() > 0) {
+                        // Got a complete line
+                        break;
+                    }
+                } else if (c >= 32 && c <= 126) { // Printable characters only
                     response += c;
                 }
             }
@@ -249,8 +332,46 @@ public:
         response.trim();
         response.toUpperCase();
         
+        if (actualResponse) {
+            *actualResponse = response;
+        }
+        
+        Serial.println("    Response: " + (response.length() > 0 ? response : "NO RESPONSE"));
+        
         // Check if response contains expected string
-        return response.indexOf(expectedResponse.c_str()) >= 0;
+        bool success = response.indexOf(expectedResponse.c_str()) >= 0;
+        
+        if (!success && response.length() > 0) {
+            Serial.println("    Expected '" + expectedResponse + "' but got '" + response + "'");
+        }
+        
+        return success;
+    }
+    
+    bool testOBDCommunication() {
+        Serial.println("    Testing OBD communication...");
+        
+        // Try to get supported PIDs (01 00)
+        String response;
+        if (sendATCommandWithResponse("0100", "4100", 2000, &response)) {
+            Serial.println("    OBD communication test: PASS");
+            return true;
+        }
+        
+        // Try alternative test - get VIN (09 02)
+        if (sendATCommandWithResponse("0902", "4902", 2000, &response)) {
+            Serial.println("    OBD communication test: PASS (VIN response)");
+            return true;
+        }
+        
+        // Try simple engine RPM request (01 0C)
+        if (sendATCommandWithResponse("010C", "410C", 2000, &response)) {
+            Serial.println("    OBD communication test: PASS (RPM response)");
+            return true;
+        }
+        
+        Serial.println("    OBD communication test: FAIL (no valid responses)");
+        return false;
     }
     
     bool readPID(uint8_t pid, int& value) {
@@ -460,43 +581,97 @@ public:
         results += "=== SERIAL OBD TESTING ===|";
         results += "Testing Serial2 interface...|";
         
-        // Test multiple baud rates
-        int baudRates[] = {9600, 38400, 115200, 230400};
+        // Test multiple baud rates with improved ELM327 detection
+        int baudRates[] = {38400, 9600, 115200, 57600};
         bool obdResponsive = false;
+        String bestResponse = "";
+        int bestBaud = 0;
         
         for (int i = 0; i < 4; i++) {
             Serial2.begin(baudRates[i], SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
-            delay(100);
+            delay(200); // More time for baud rate stabilization
             
             // Clear buffer
             while (Serial2.available()) {
                 Serial2.read();
             }
             
-            // Send AT command
-            Serial2.println("ATZ");
+            // Send ELM327 reset command
+            Serial2.print("ATZ\r");
             Serial2.flush();
-            delay(500);
+            delay(1500); // ELM327 needs time to reset
             
             String response = "";
             unsigned long startTime = millis();
-            while (millis() - startTime < 1000 && Serial2.available()) {
-                char c = Serial2.read();
-                if (c >= 32 && c <= 126) { // Printable characters only
-                    response += c;
+            while (millis() - startTime < 2000) {
+                if (Serial2.available()) {
+                    char c = Serial2.read();
+                    if (c >= 32 && c <= 126) { // Printable characters only
+                        response += c;
+                    } else if (c == '\r' || c == '\n') {
+                        if (response.length() > 0) {
+                            break; // Got complete response
+                        }
+                    }
                 }
+                delay(1);
             }
             
+            response.trim();
+            
             if (response.length() > 0) {
-                results += "Baud " + String(baudRates[i]) + ": RESPONSE (" + String(response.length()) + " chars)|";
-                results += "Response: " + response.substring(0, min(20, (int)response.length())) + "|";
-                obdResponsive = true;
+                results += "Baud " + String(baudRates[i]) + ": RESPONSE|";
+                results += "  Content: " + response.substring(0, min(30, (int)response.length())) + "|";
+                
+                // Check for ELM327 indicators
+                if (response.indexOf("ELM327") >= 0 || response.indexOf("v1.") >= 0 || 
+                    response.indexOf("v2.") >= 0 || response.indexOf("OBD") >= 0) {
+                    results += "  Type: ELM327 Compatible|";
+                    obdResponsive = true;
+                    bestResponse = response;
+                    bestBaud = baudRates[i];
+                } else {
+                    results += "  Type: Unknown OBD Interface|";
+                    if (!obdResponsive) {
+                        obdResponsive = true; // Any response is better than none
+                        bestResponse = response;
+                        bestBaud = baudRates[i];
+                    }
+                }
+                
+                // Test basic communication
+                delay(500);
+                while (Serial2.available()) Serial2.read(); // Clear buffer
+                Serial2.print("ATE0\r");
+                Serial2.flush();
+                delay(500);
+                
+                String echoResponse = "";
+                startTime = millis();
+                while (millis() - startTime < 1000 && Serial2.available()) {
+                    char c = Serial2.read();
+                    if (c >= 32 && c <= 126) {
+                        echoResponse += c;
+                    }
+                }
+                
+                if (echoResponse.indexOf("OK") >= 0) {
+                    results += "  Echo Test: PASS|";
+                } else {
+                    results += "  Echo Test: FAIL (" + echoResponse + ")|";
+                }
+                
             } else {
                 results += "Baud " + String(baudRates[i]) + ": NO RESPONSE|";
             }
             
             Serial2.end();
             delay(100);
+        }
+        
+        if (obdResponsive && bestBaud > 0) {
+            results += "|Best Interface: " + String(bestBaud) + " baud|";
+            results += "Best Response: " + bestResponse + "|";
         }
         
         results += "|";
@@ -784,66 +959,94 @@ private:
             Serial2.read();
         }
         
-        // Send request
-        Serial2.println(obdRequest);
+        // Send request with proper termination
+        Serial2.print(obdRequest + "\r");
         Serial2.flush();
         
-        // Wait for response with timeout
-        String response = "";
+        // Wait for response with improved parsing
+        String fullResponse = "";
+        String currentLine = "";
         unsigned long startTime = millis();
-        bool responseComplete = false;
+        bool foundPrompt = false;
+        bool foundValidResponse = false;
         
-        while (millis() - startTime < 2000 && !responseComplete) { // 2 second timeout
+        while (millis() - startTime < 3000 && !foundPrompt) { // Increased timeout
             if (Serial2.available()) {
                 char c = Serial2.read();
                 
                 if (c == '>') {
                     // ELM327 prompt indicates end of response
-                    responseComplete = true;
+                    foundPrompt = true;
+                    if (currentLine.length() > 0) {
+                        fullResponse += currentLine;
+                    }
                     break;
                 } else if (c == '\r' || c == '\n') {
-                    if (response.length() > 0) {
-                        // Check if this line contains our response
-                        if (response.startsWith("41")) {
-                            responseComplete = true;
-                            break;
+                    if (currentLine.length() > 0) {
+                        fullResponse += currentLine + "|";
+                        
+                        // Check if this line contains a valid OBD response
+                        String trimmedLine = currentLine;
+                        trimmedLine.trim();
+                        trimmedLine.replace(" ", ""); // Remove spaces
+                        trimmedLine.toUpperCase();
+                        
+                        if (trimmedLine.startsWith("41")) {
+                            foundValidResponse = true;
                         }
-                        response = ""; // Reset for next line
+                        
+                        currentLine = "";
                     }
-                } else if (c != ' ') { // Ignore spaces
-                    response += c;
+                } else if (c >= 32 && c <= 126) { // Printable characters only
+                    currentLine += c;
                 }
             }
             delay(1);
         }
         
-        response.trim();
-        response.toUpperCase();
+        // Process the response
+        fullResponse.trim();
+        fullResponse.replace(" ", ""); // Remove all spaces
+        fullResponse.toUpperCase();
         
-        // Parse OBD-II response
-        if (response.length() >= 6 && response.startsWith("41")) {
-            // Valid response format: "41[PID][DATA]"
-            String pidHex = String(pid, HEX);
-            if (pid < 0x10) pidHex = "0" + pidHex;
-            pidHex.toUpperCase();
+        // Look for valid OBD response in the full response
+        String pidHex = String(pid, HEX);
+        if (pid < 0x10) pidHex = "0" + pidHex;
+        pidHex.toUpperCase();
+        String expectedStart = "41" + pidHex;
+        
+        // Find the response line that starts with our expected pattern
+        int startPos = fullResponse.indexOf(expectedStart);
+        if (startPos >= 0) {
+            // Extract the response line
+            int endPos = fullResponse.indexOf("|", startPos);
+            if (endPos < 0) endPos = fullResponse.length();
             
-            String expectedStart = "41" + pidHex;
-            if (response.startsWith(expectedStart)) {
-                // Extract data bytes and convert based on PID
-                String dataBytes = response.substring(expectedStart.length());
-                return parseOBDResponse(pid, dataBytes, value);
+            String responseLine = fullResponse.substring(startPos, endPos);
+            String dataBytes = responseLine.substring(expectedStart.length());
+            
+            if (parseOBDResponse(pid, dataBytes, value)) {
+                return true;
             }
         }
         
-        // Check for common error responses
-        if (response.indexOf("NODATA") >= 0) {
+        // Enhanced error handling
+        if (fullResponse.indexOf("NODATA") >= 0) {
             lastError = "No data available for PID 0x" + String(pid, HEX);
-        } else if (response.indexOf("ERROR") >= 0) {
+        } else if (fullResponse.indexOf("ERROR") >= 0) {
             lastError = "OBD error for PID 0x" + String(pid, HEX);
-        } else if (response.length() == 0) {
+        } else if (fullResponse.indexOf("UNABLETOCONNECT") >= 0) {
+            lastError = "Unable to connect to vehicle ECU";
+        } else if (fullResponse.indexOf("BUSBUSY") >= 0) {
+            lastError = "CAN bus busy, try again";
+        } else if (fullResponse.indexOf("CANERROR") >= 0) {
+            lastError = "CAN bus error";
+        } else if (fullResponse.length() == 0) {
             lastError = "No response for PID 0x" + String(pid, HEX);
+        } else if (!foundValidResponse) {
+            lastError = "Invalid response for PID 0x" + String(pid, HEX) + ": " + fullResponse.substring(0, min(50, (int)fullResponse.length()));
         } else {
-            lastError = "Invalid response for PID 0x" + String(pid, HEX) + ": " + response;
+            lastError = "Failed to parse response for PID 0x" + String(pid, HEX);
         }
         
         lastErrorTime = millis();
