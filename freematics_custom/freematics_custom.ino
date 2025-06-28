@@ -1378,6 +1378,7 @@ private:
         lastErrorTime = millis();
         return false;
     }
+#endif
     
 };
 
