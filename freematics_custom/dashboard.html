@@ -2007,12 +2007,40 @@
                         console.warn('Failed to read logs from localStorage, using in-memory logs:', storageError);
                     }
                     
-                    // Include all diagnostic messages from raw data log without filtering
-                    const diagnosticMessages = currentRawDataLog
-                        .map(entry => `${entry.timestamp}: ${entry.data}`)
-                        .join('\n');
+                    // Extract diagnostic session logs (from start to completion)
+                    const diagnosticSessionLogs = diagnosticStartLogIndex !== null ? 
+                        currentRawDataLog.slice(diagnosticStartLogIndex) : 
+                        currentRawDataLog.slice(-100);
+                    
+                    // Parse the latest sensor data from logs for accurate values
+                    const latestSensorData = parseLatestSensorData(diagnosticSessionLogs);
+                    const mergedCurrentData = { ...currentData, ...latestSensorData };
+                    
+                    // Extract only diagnostic-specific messages for cleaner reporting
+                    const diagnosticSpecificMessages = diagnosticSessionLogs
+                        .filter(entry => 
+                            entry.data.includes('DIAGNOSTIC') ||
+                            entry.data.includes('TX: CMD:DIAGNOSTIC') ||
+                            entry.data.includes('ESP32') ||
+                            entry.data.includes('GPIO') ||
+                            entry.data.includes('ADC') ||
+                            entry.data.includes('I2C') ||
+                            entry.data.includes('SPI') ||
+                            entry.data.includes('MEMORY') ||
+                            entry.data.includes('HEAP') ||
+                            entry.data.includes('TEMPERATURE') ||
+                            entry.data.includes('VOLTAGE') ||
+                            entry.data.includes('BLE SYSTEM') ||
+                            entry.data.includes('OBD') ||
+                            entry.data.includes('CAN')
+                        )
+                        .map(entry => `**${entry.timestamp}**: ${entry.data}`)
+                        .join('\n\n');
+                    
+                    // Create comprehensive diagnostic summary
+                    const diagnosticSummary = createDiagnosticSummary(diagnosticResults, diagnosticStatus, mergedCurrentData);
 
-                    // Prepare webhook payload matching the expected format
+                    // Prepare webhook payload with enhanced data structure
                     const webhookPayload = {
                         deviceId: device?.name || 'FreematicsCustom_' + (device?.id?.substring(0, 8) || 'Unknown'),
                         deviceName: device?.name || 'FreematicsCustom',
@@ -2020,48 +2048,62 @@
                         diagnosticType: 'hardware_diagnostic',
                         diagnosticStatus: diagnosticStatus,
                         issuesFound: countDiagnosticIssues(diagnosticResults),
-                        diagnosticResults: diagnosticResults || 'No diagnostic data available',
+                        diagnosticResults: diagnosticSummary,
                         
-                        // Include raw diagnostic messages from the log
-                        rawDiagnosticMessages: diagnosticMessages || 'No diagnostic messages captured',
+                        // Enhanced diagnostic messages with markdown formatting
+                        rawDiagnosticMessages: diagnosticSpecificMessages || '**No diagnostic-specific messages captured**',
                         
-                        // Include all log entries from diagnostic start to completion
-                        recentLogEntries: (diagnosticStartLogIndex !== null ? 
-                            currentRawDataLog.slice(diagnosticStartLogIndex) : 
-                            currentRawDataLog.slice(-50)
-                        ).map(entry => ({
+                        // Complete session log entries with better organization
+                        recentLogEntries: diagnosticSessionLogs.map(entry => ({
                             timestamp: entry.timestamp,
                             type: entry.type || 'data',
-                            message: entry.data
+                            message: entry.data,
+                            // Add markdown formatting for better display
+                            formattedMessage: formatLogEntryForMarkdown(entry)
                         })),
                         
-                        // System health summary from current data
+                        // Enhanced system health with parsed sensor data
                         systemHealth: {
-                            engineLoad: currentData.engineLoad || 0,
-                            coolantTemp: currentData.coolant || 0,
-                            batteryVoltage: currentData.batteryVoltage || 0,
-                            fuelLevel: currentData.fuelLevel || 0
+                            engineLoad: mergedCurrentData.engineLoad || 0,
+                            coolantTemp: mergedCurrentData.coolant || 0,
+                            batteryVoltage: mergedCurrentData.batteryVoltage || 0,
+                            fuelLevel: mergedCurrentData.fuelLevel || 0,
+                            ambientTemp: mergedCurrentData.ambientTemp || 0,
+                            atmosphericPressure: mergedCurrentData.enginePressure || 0,
+                            gpsSignalQuality: mergedCurrentData.gps?.satellites || 0
                         },
                         
-                        // Power analysis
+                        // Enhanced power analysis with better voltage interpretation
                         powerAnalysis: {
-                            inputVoltage: currentData.batteryVoltage || 0,
-                            powerSource: currentData.batteryVoltage > 11 ? 'Vehicle Power' : 
-                                        currentData.batteryVoltage > 4.5 ? 'USB Power' : 'Unknown',
-                            voltageStatus: currentData.batteryVoltage > 12 ? 'OK' : 'LOW',
-                            rail3v3: 'OK' // Assume OK if we're getting data
+                            inputVoltage: mergedCurrentData.batteryVoltage || 0,
+                            powerSource: determinePowerSource(mergedCurrentData.batteryVoltage),
+                            voltageStatus: mergedCurrentData.batteryVoltage > 12 ? 'OK' : 
+                                          mergedCurrentData.batteryVoltage > 11 ? 'LOW' : 'CRITICAL',
+                            rail3v3: 'OK', // Assume OK if we're getting data
+                            powerQuality: assessPowerQuality(mergedCurrentData.batteryVoltage)
                         },
                         
-                        // Hardware status from system status
+                        // Enhanced hardware status with uptime and API version
                         hardwareStatus: {
-                            bleStatus: currentData.systemStatus?.BLE || 'OK',
-                            obdStatus: currentData.systemStatus?.OBD || currentData.dataMode || 'UNKNOWN',
-                            gpsStatus: currentData.systemStatus?.GPS || 'OK',
-                            storageStatus: currentData.systemStatus?.STORAGE || 'OK'
+                            bleStatus: mergedCurrentData.systemStatus?.BLE || 'OK',
+                            obdStatus: mergedCurrentData.systemStatus?.OBD || mergedCurrentData.dataMode || 'UNKNOWN',
+                            gpsStatus: mergedCurrentData.systemStatus?.GPS || 'OK',
+                            storageStatus: mergedCurrentData.systemStatus?.STORAGE || 'OK',
+                            apiVersion: mergedCurrentData.apiVersion || 'Unknown',
+                            deviceUptime: extractUptimeFromLogs(diagnosticSessionLogs)
                         },
                         
-                        // Generate recommendations based on diagnostic results and current data
-                        recommendations: generateDiagnosticRecommendations(diagnosticResults, currentData)
+                        // Enhanced recommendations with specific actions
+                        recommendations: generateEnhancedRecommendations(diagnosticResults, mergedCurrentData, diagnosticStatus),
+                        
+                        // Add session metadata for better tracking
+                        sessionMetadata: {
+                            sessionDuration: calculateSessionDuration(diagnosticSessionLogs),
+                            totalMessages: diagnosticSessionLogs.length,
+                            diagnosticStartTime: diagnosticSessionLogs[0]?.timestamp || 'Unknown',
+                            diagnosticEndTime: diagnosticSessionLogs[diagnosticSessionLogs.length - 1]?.timestamp || 'Unknown',
+                            connectionStability: assessConnectionStability(diagnosticSessionLogs)
+                        }
                     };
                     
                     console.log('Sending diagnostic data to webhook:', webhookPayload);
@@ -2150,50 +2192,231 @@
                 return issueCount;
             };
             
-            // Function to generate recommendations based on diagnostic results
-            const generateDiagnosticRecommendations = (diagnosticText, currentData) => {
-                const recommendations = [];
+            // Helper function to parse latest sensor data from logs
+            const parseLatestSensorData = (logs) => {
+                const latestData = {};
                 
-                if (!diagnosticText) return recommendations;
-                
-                const lowerText = diagnosticText.toLowerCase();
-                
-                // Power-related recommendations
-                if (currentData.batteryVoltage < 12.0) {
-                    recommendations.push('Check vehicle battery and charging system');
+                // Parse the most recent sensor readings from logs
+                for (let i = logs.length - 1; i >= 0; i--) {
+                    const entry = logs[i];
+                    if (entry.data.includes('BATTERY:')) {
+                        const batteryMatch = entry.data.match(/BATTERY:(\d+)/);
+                        if (batteryMatch && !latestData.batteryVoltage) {
+                            latestData.batteryVoltage = parseInt(batteryMatch[1]) / 100; // Convert centivolt to volt
+                        }
+                    }
+                    if (entry.data.includes('AMBIENT:')) {
+                        const ambientMatch = entry.data.match(/AMBIENT:(-?\d+)/);
+                        if (ambientMatch && !latestData.ambientTemp) {
+                            latestData.ambientTemp = Math.round(((parseInt(ambientMatch[1]) * 9/5) + 32)); // Convert C to F
+                        }
+                    }
+                    if (entry.data.includes('PRESSURE:')) {
+                        const pressureMatch = entry.data.match(/PRESSURE:(\d+)/);
+                        if (pressureMatch && !latestData.enginePressure) {
+                            latestData.enginePressure = parseInt(pressureMatch[1]);
+                        }
+                    }
+                    if (entry.data.includes('GPS:')) {
+                        const gpsMatch = entry.data.match(/GPS:([-\d.]+),([-\d.]+)/);
+                        const satMatch = entry.data.match(/SAT:(\d+)/);
+                        if (gpsMatch && !latestData.gps) {
+                            latestData.gps = {
+                                lat: parseFloat(gpsMatch[1]),
+                                lng: parseFloat(gpsMatch[2]),
+                                satellites: satMatch ? parseInt(satMatch[1]) : 0
+                            };
+                        }
+                    }
                 }
                 
-                // OBD-related recommendations
+                return latestData;
+            };
+            
+            // Helper function to create comprehensive diagnostic summary
+            const createDiagnosticSummary = (diagnosticResults, diagnosticStatus, currentData) => {
+                let summary = diagnosticResults || 'No diagnostic data available';
+                
+                // Add device status summary at the beginning
+                const statusSummary = `
+## 📊 Device Status Summary
+
+**Connection Status**: ${diagnosticStatus}
+**Battery Voltage**: ${(currentData.batteryVoltage || 0).toFixed(2)}V
+**Ambient Temperature**: ${currentData.ambientTemp || 0}°F
+**Atmospheric Pressure**: ${currentData.enginePressure || 0} mbar
+**GPS Satellites**: ${currentData.gps?.satellites || 0}
+**API Version**: ${currentData.apiVersion || 'Unknown'}
+
+---
+
+## 🔧 Diagnostic Results
+
+${summary}`;
+                
+                return statusSummary;
+            };
+            
+            // Helper function to format log entries for markdown
+            const formatLogEntryForMarkdown = (entry) => {
+                const timestamp = entry.timestamp;
+                const data = entry.data;
+                const type = entry.type || 'data';
+                
+                // Add appropriate markdown formatting based on entry type
+                switch (type) {
+                    case 'error':
+                        return `**🚨 ERROR** [${timestamp}]: \`${data}\``;
+                    case 'tx':
+                        return `**📤 SENT** [${timestamp}]: \`${data}\``;
+                    case 'system':
+                        return `**⚙️ SYSTEM** [${timestamp}]: ${data}`;
+                    case 'status':
+                        return `**📋 STATUS** [${timestamp}]: \`${data}\``;
+                    case 'heartbeat':
+                        return `**💓 HEARTBEAT** [${timestamp}]: \`${data}\``;
+                    case 'pong':
+                        return `**🏓 PONG** [${timestamp}]: \`${data}\``;
+                    default:
+                        return `**📊 DATA** [${timestamp}]: \`${data}\``;
+                }
+            };
+            
+            // Helper function to determine power source
+            const determinePowerSource = (voltage) => {
+                if (!voltage) return 'Unknown';
+                if (voltage > 11) return 'Vehicle Power (12V System)';
+                if (voltage > 4.5) return 'USB Power (5V)';
+                if (voltage > 3.0) return 'Battery Power (3.3V)';
+                return 'Low Power/Unknown';
+            };
+            
+            // Helper function to assess power quality
+            const assessPowerQuality = (voltage) => {
+                if (!voltage) return 'Unknown';
+                if (voltage >= 13.8 && voltage <= 14.4) return 'Excellent (Charging)';
+                if (voltage >= 12.4 && voltage < 13.8) return 'Good (Battery)';
+                if (voltage >= 11.8 && voltage < 12.4) return 'Fair (Low Battery)';
+                if (voltage < 11.8) return 'Poor (Critical Low)';
+                if (voltage > 14.4) return 'Warning (Overcharging)';
+                return 'Unknown';
+            };
+            
+            // Helper function to extract uptime from logs
+            const extractUptimeFromLogs = (logs) => {
+                for (let i = logs.length - 1; i >= 0; i--) {
+                    const uptimeMatch = logs[i].data.match(/UPTIME=(\d+)/);
+                    if (uptimeMatch) {
+                        const uptimeSeconds = parseInt(uptimeMatch[1]);
+                        const hours = Math.floor(uptimeSeconds / 3600);
+                        const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+                        const seconds = uptimeSeconds % 60;
+                        return `${hours}h ${minutes}m ${seconds}s`;
+                    }
+                }
+                return 'Unknown';
+            };
+            
+            // Helper function to calculate session duration
+            const calculateSessionDuration = (logs) => {
+                if (logs.length < 2) return 'Unknown';
+                const startTime = new Date(`1970-01-01 ${logs[0].timestamp}`);
+                const endTime = new Date(`1970-01-01 ${logs[logs.length - 1].timestamp}`);
+                const durationMs = endTime - startTime;
+                const durationSeconds = Math.floor(durationMs / 1000);
+                return `${durationSeconds} seconds`;
+            };
+            
+            // Helper function to assess connection stability
+            const assessConnectionStability = (logs) => {
+                const errorCount = logs.filter(entry => entry.type === 'error').length;
+                const totalMessages = logs.length;
+                const errorRate = totalMessages > 0 ? (errorCount / totalMessages) * 100 : 0;
+                
+                if (errorRate === 0) return 'Excellent (No errors)';
+                if (errorRate < 5) return 'Good (Few errors)';
+                if (errorRate < 15) return 'Fair (Some errors)';
+                return 'Poor (Many errors)';
+            };
+            
+            // Enhanced function to generate recommendations
+            const generateEnhancedRecommendations = (diagnosticText, currentData, diagnosticStatus) => {
+                const recommendations = [];
+                
+                if (!diagnosticText) diagnosticText = '';
+                const lowerText = diagnosticText.toLowerCase();
+                
+                // Status-based recommendations
+                if (diagnosticStatus === 'TIMEOUT') {
+                    recommendations.push('**Connection Issue**: Device timed out - check BLE connection stability');
+                    recommendations.push('**Troubleshooting**: Try disconnecting and reconnecting the device');
+                    recommendations.push('**Range Check**: Ensure device is within 10 meters of this computer');
+                }
+                
+                // Power-related recommendations with specific voltage thresholds
+                const voltage = currentData.batteryVoltage || 0;
+                if (voltage < 11.8) {
+                    recommendations.push('**Critical**: Battery voltage critically low - check vehicle battery and charging system immediately');
+                } else if (voltage < 12.4) {
+                    recommendations.push('**Warning**: Battery voltage low - vehicle may have charging system issues');
+                } else if (voltage > 14.5) {
+                    recommendations.push('**Warning**: Battery voltage high - possible overcharging condition');
+                }
+                
+                // Temperature-based recommendations
+                const ambientTemp = currentData.ambientTemp || 0;
+                if (ambientTemp > 100) {
+                    recommendations.push('**Heat Warning**: High ambient temperature detected - ensure adequate device ventilation');
+                } else if (ambientTemp < 32) {
+                    recommendations.push('**Cold Warning**: Low temperature may affect battery performance and sensor accuracy');
+                }
+                
+                // GPS-based recommendations
+                const satellites = currentData.gps?.satellites || 0;
+                if (satellites < 4) {
+                    recommendations.push('**GPS Issue**: Insufficient satellite coverage - move to open area for better GPS reception');
+                } else if (satellites < 6) {
+                    recommendations.push('**GPS Notice**: GPS signal could be improved - consider relocating for better satellite visibility');
+                }
+                
+                // Diagnostic content analysis
                 if (lowerText.includes('no response') && lowerText.includes('obd')) {
-                    recommendations.push('Check OBD-II cable connection and vehicle ignition');
+                    recommendations.push('**OBD-II Issue**: No OBD response - verify vehicle ignition is ON and OBD cable is properly connected');
                 }
                 
                 if (lowerText.includes('can') && lowerText.includes('fail')) {
-                    recommendations.push('Verify CAN bus wiring and SN65HVD230 transceiver');
+                    recommendations.push('**CAN Bus Issue**: CAN communication failed - check CAN transceiver wiring and vehicle compatibility');
                 }
                 
-                // Memory recommendations
                 if (lowerText.includes('memory') && lowerText.includes('low')) {
-                    recommendations.push('Restart device to free memory');
+                    recommendations.push('**Memory Issue**: Low memory detected - restart device to free up memory resources');
                 }
                 
-                // Temperature recommendations
-                if (lowerText.includes('hot') || lowerText.includes('temperature')) {
-                    recommendations.push('Check device ventilation and ambient temperature');
+                if (lowerText.includes('i2c') && lowerText.includes('fail')) {
+                    recommendations.push('**I2C Issue**: I2C communication problem - check sensor connections on pins 21 (SDA) and 22 (SCL)');
                 }
                 
-                // BLE recommendations
-                if (lowerText.includes('ble') && lowerText.includes('fail')) {
-                    recommendations.push('Restart device to reinitialize Bluetooth');
+                if (lowerText.includes('spi') && lowerText.includes('fail')) {
+                    recommendations.push('**SPI Issue**: SPI communication problem - verify SPI device connections and pin assignments');
                 }
                 
-                // Generic recommendations if no specific issues found
-                if (recommendations.length === 0 && lowerText.includes('fail')) {
-                    recommendations.push('Review diagnostic details for specific component issues');
-                    recommendations.push('Check all cable connections and power supply');
+                // Default recommendations if no specific issues
+                if (recommendations.length === 0) {
+                    if (diagnosticStatus === 'SUCCESS') {
+                        recommendations.push('**All Good**: No issues detected - system operating normally');
+                        recommendations.push('**Maintenance**: Continue regular monitoring for optimal performance');
+                    } else {
+                        recommendations.push('**General**: Review diagnostic details above for any specific component issues');
+                        recommendations.push('**Basic Check**: Verify all cable connections and power supply stability');
+                    }
                 }
                 
                 return recommendations;
+            };
+            
+            // Function to generate recommendations based on diagnostic results (legacy compatibility)
+            const generateDiagnosticRecommendations = (diagnosticText, currentData) => {
+                return generateEnhancedRecommendations(diagnosticText, currentData, 'SUCCESS');
             };
 
             // Helper function to get range indicator text and color
