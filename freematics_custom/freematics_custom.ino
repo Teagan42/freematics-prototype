@@ -91,30 +91,85 @@ bool bleClientConnected = false;
 unsigned long lastLedBlink = 0;
 bool ledState = false;
 
+// Serial message capture for BLE transmission
+#define SERIAL_BUFFER_SIZE 10
+#define MAX_SERIAL_MSG_LENGTH 100
+struct SerialMessage {
+    String message;
+    unsigned long timestamp;
+    bool used;
+};
+SerialMessage serialBuffer[SERIAL_BUFFER_SIZE];
+int serialBufferIndex = 0;
+int serialBufferCount = 0;
+
+// Custom Serial class to capture messages
+class BLESerial {
+public:
+    static void println(const String& message) {
+        // Send to actual Serial
+        Serial.println(message);
+        
+        // Store in buffer for BLE transmission
+        if (bleClientConnected) {
+            addSerialMessage(message);
+        }
+    }
+    
+    static void print(const String& message) {
+        // Send to actual Serial
+        Serial.print(message);
+        
+        // Store in buffer for BLE transmission (only if it ends with newline)
+        if (bleClientConnected && message.endsWith("\n")) {
+            String cleanMsg = message;
+            cleanMsg.replace("\n", "");
+            addSerialMessage(cleanMsg);
+        }
+    }
+    
+private:
+    static void addSerialMessage(const String& message) {
+        if (message.length() == 0 || message.length() > MAX_SERIAL_MSG_LENGTH) {
+            return; // Skip empty or too long messages
+        }
+        
+        // Add to circular buffer
+        serialBuffer[serialBufferIndex].message = message;
+        serialBuffer[serialBufferIndex].timestamp = millis();
+        serialBuffer[serialBufferIndex].used = false;
+        
+        serialBufferIndex = (serialBufferIndex + 1) % SERIAL_BUFFER_SIZE;
+        if (serialBufferCount < SERIAL_BUFFER_SIZE) {
+            serialBufferCount++;
+        }
+    }
+};
+
 // BLE Server Callbacks
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         bleClientConnected = true;
-        Serial.println("=== BLE CLIENT CONNECTED ===");
-        Serial.println("Client MAC: " + String(pServer->getConnId()));
-        Serial.println("Starting data collection...");
+        BLESerial::println("=== BLE CLIENT CONNECTED ===");
+        BLESerial::println("Client MAC: " + String(pServer->getConnId()));
+        BLESerial::println("Starting data collection...");
         
         // Send immediate connection confirmation with API version
         if (pCharacteristic) {
             String connectMsg = "0:" + String(millis()) + ",CONNECT:SUCCESS,API_VERSION:" + String(API_VERSION) + ";";
             pCharacteristic->setValue(connectMsg.c_str());
             pCharacteristic->notify();
-            Serial.println("BLE TX CONNECT: " + connectMsg);
+            BLESerial::println("BLE TX CONNECT: " + connectMsg);
         }
     };
 
     void onDisconnect(BLEServer* pServer) {
         bleClientConnected = false;
-        Serial.println("=== BLE CLIENT DISCONNECTED ===");
-        Serial.println("Reason: Client initiated or connection lost");
-        Serial.println("Restarting advertising...");
+        BLESerial::println("=== BLE CLIENT DISCONNECTED ===");
+        BLESerial::println("Reason: Client initiated or connection lost");
+        BLESerial::println("Restarting advertising...");
         BLEDevice::startAdvertising();
-        Serial.println("Waiting for new BLE client connection...");
+        BLESerial::println("Waiting for new BLE client connection...");
     }
 };
 
@@ -1558,7 +1613,7 @@ public:
         digitalWrite(PIN_LED, LOW);
         
         // Initialize BLE
-        Serial.print("BLE...");
+        BLESerial::print("BLE...");
         BLEDevice::init(BLE_DEVICE_NAME);
         pServer = BLEDevice::createServer();
         pServer->setCallbacks(new MyServerCallbacks());
@@ -1582,41 +1637,41 @@ public:
         pAdvertising->setMinPreferred(0x0);
         BLEDevice::startAdvertising();
         
-        Serial.println("OK");
+        BLESerial::println("OK");
         m_state |= STATE_BLE_READY;
         
         // Initialize OBD
-        Serial.print("OBD...");
+        BLESerial::print("OBD...");
         if (obd.init()) {
-            Serial.println("OK");
+            BLESerial::println("OK");
             m_state |= STATE_OBD_READY;
         } else {
-            Serial.println("NO");
+            BLESerial::println("NO");
             success = false;
         }
         
         // Initialize GPS
-        Serial.print("GPS...");
+        BLESerial::print("GPS...");
         if (gps.begin()) {
-            Serial.println("OK");
+            BLESerial::println("OK");
             m_state |= STATE_GPS_READY;
         } else {
-            Serial.println("NO");
+            BLESerial::println("NO");
         }
         
         // Initialize MEMS
-        Serial.print("MEMS...");
+        BLESerial::print("MEMS...");
         // MEMS initialization not available in this library version
-        Serial.println("SKIPPED");
+        BLESerial::println("SKIPPED");
         // m_state |= STATE_MEMS_READY; // Disabled for graceful degradation
         
         // Initialize storage
-        Serial.print("Storage...");
+        BLESerial::print("Storage...");
         if (store.init()) {
-            Serial.println("OK");
+            BLESerial::println("OK");
             m_state |= STATE_STORAGE_READY;
         } else {
-            Serial.println("NO");
+            BLESerial::println("NO");
         }
         
         return success;
@@ -1745,7 +1800,7 @@ private:
                 String fullMessage = String(messageCounter) + ":" + bleData;
                 
                 // Log what we're sending
-                Serial.println("BLE TX: " + fullMessage);
+                Serial.println("BLE TX: " + fullMessage); // Keep original Serial for BLE TX logs to avoid recursion
                 
                 pCharacteristic->setValue(fullMessage.c_str());
                 pCharacteristic->notify();
@@ -1775,7 +1830,7 @@ private:
                 statusData += "API_VERSION=" + String(API_VERSION) + ",";
                 statusData += "UPTIME=" + String(millis() / 1000) + ";";
                 
-                Serial.println("BLE TX STATUS: " + statusData);
+                Serial.println("BLE TX STATUS: " + statusData); // Keep original Serial for BLE TX logs
                 pCharacteristic->setValue(statusData.c_str());
                 pCharacteristic->notify();
                 lastStatusTime = millis();
@@ -1788,7 +1843,7 @@ private:
                 messageCounter++;
                 String heartbeat = String(messageCounter) + ":" + String(millis()) + ",HEARTBEAT:OK;";
                 
-                Serial.println("BLE TX HEARTBEAT: " + heartbeat);
+                Serial.println("BLE TX HEARTBEAT: " + heartbeat); // Keep original Serial for BLE TX logs
                 pCharacteristic->setValue(heartbeat.c_str());
                 pCharacteristic->notify();
                 lastHeartbeatTime = millis();
@@ -1803,6 +1858,12 @@ private:
     String formatDataForBLE()
     {
         String data = String(millis()) + ",";
+        
+        // Add any pending serial messages first
+        String serialMessages = getSerialMessages();
+        if (serialMessages.length() > 0) {
+            data += "SERIAL:" + serialMessages + ";";
+        }
         
         // Add data source indicator
         if (obd.isUsingRealData()) {
@@ -1869,6 +1930,26 @@ private:
         }
         
         return data;
+    }
+    
+    String getSerialMessages() {
+        String messages = "";
+        int messageCount = 0;
+        
+        // Get up to 3 most recent unused messages
+        for (int i = 0; i < serialBufferCount && messageCount < 3; i++) {
+            int index = (serialBufferIndex - 1 - i + SERIAL_BUFFER_SIZE) % SERIAL_BUFFER_SIZE;
+            if (!serialBuffer[index].used && serialBuffer[index].message.length() > 0) {
+                if (messages.length() > 0) {
+                    messages += "|";
+                }
+                messages += String(serialBuffer[index].timestamp) + ":" + serialBuffer[index].message;
+                serialBuffer[index].used = true; // Mark as sent
+                messageCount++;
+            }
+        }
+        
+        return messages;
     }
     
     void recordStatusReading() {
@@ -1977,17 +2058,17 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
         String value = pCharacteristic->getValue();
         if (value.length() > 0) {
-            Serial.println("BLE RX: " + value);
+            BLESerial::println("BLE RX: " + value);
             
             // Handle commands from BLE client
             if (value.startsWith("CMD:")) {
                 String command = value.substring(4); // Remove "CMD:" prefix
                 
                 if (command == "STATUS" && logger) {
-                    Serial.println("Status request received via BLE");
+                    BLESerial::println("Status request received via BLE");
                     // Status will be sent in next sendBLEData() cycle
                 } else if (command == "PING") {
-                    Serial.println("Ping received via BLE");
+                    BLESerial::println("Ping received via BLE");
                     
                     // Send pong response with message counter
                     if (pCharacteristic) {
@@ -1998,7 +2079,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                         pCharacteristic->notify();
                     }
                 } else if (command == "DIAGNOSTIC" && logger) {
-                    Serial.println("Diagnostic mode requested via BLE");
+                    BLESerial::println("Diagnostic mode requested via BLE");
                     
                     // Get access to message counter (we'll use a static counter for diagnostic messages)
                     static uint32_t diagnosticMessageCounter = 1000; // Start high to avoid conflicts
@@ -2014,7 +2095,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                     
                     // Run comprehensive diagnostics
                     String diagnosticResults = logger->obd.runFullDiagnostics();
-                    Serial.println("Diagnostic results length: " + String(diagnosticResults.length()));
+                    BLESerial::println("Diagnostic results length: " + String(diagnosticResults.length()));
                     
                     // Send results in chunks if too large for single BLE packet
                     if (diagnosticResults.length() > 400) {
@@ -2060,23 +2141,30 @@ void setup()
     Serial.begin(115200);
     delay(1000);
     
-    Serial.println("Freematics Custom Starting...");
+    // Initialize serial buffer
+    for (int i = 0; i < SERIAL_BUFFER_SIZE; i++) {
+        serialBuffer[i].message = "";
+        serialBuffer[i].timestamp = 0;
+        serialBuffer[i].used = true;
+    }
+    
+    BLESerial::println("Freematics Custom Starting...");
     
     // Initialize global logger pointer
     logger = &loggerInstance;
     
     if (logger->init()) {
-        Serial.println("Logger OK");
+        BLESerial::println("Logger OK");
         
         // Set BLE callbacks after initialization
         if (pCharacteristic) {
             pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
         }
     } else {
-        Serial.println("Logger FAIL");
+        BLESerial::println("Logger FAIL");
     }
     
-    Serial.println("Waiting for BLE client connection...");
+    BLESerial::println("Waiting for BLE client connection...");
 }
 
 void loop()
