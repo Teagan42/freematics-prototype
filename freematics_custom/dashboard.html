@@ -1252,6 +1252,12 @@
                     
                 if (rawData.startsWith('DIAGNOSTIC_STARTED:')) {
                     try {
+                        // Clear any existing timeouts
+                        if (window.diagnosticTimeouts) {
+                            window.diagnosticTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+                            window.diagnosticTimeouts.clear();
+                        }
+                        
                         setDiagnosticRunning(true);
                         setDiagnosticError(null);
                         setDiagnosticResults('🔄 Diagnostic mode started...\nRunning comprehensive system checks...\nThis may take 10-30 seconds...\n\n');
@@ -1262,7 +1268,8 @@
                         console.log('Diagnostic started, waiting for results...');
                     } catch (diagError) {
                         console.error('Error handling diagnostic start:', diagError);
-                        setDiagnosticError('Failed to start diagnostic process');
+                        setDiagnosticError('Failed to start diagnostic process: ' + diagError.message);
+                        setDiagnosticRunning(false);
                         
                         // Auto-switch to diagnostics tab even on error
                         setActiveTab('diagnostics');
@@ -1271,9 +1278,16 @@
                 }
                     
                 if (rawData.startsWith('DIAGNOSTIC_COMPLETE:')) {
-                    const status = rawData.substring('DIAGNOSTIC_COMPLETE:'.length);
+                    const status = rawData.substring('DIAGNOSTIC_COMPLETE:'.length).trim();
                     try {
+                        // Clear any pending timeouts
+                        if (window.diagnosticTimeouts) {
+                            window.diagnosticTimeouts.forEach(timeoutId => clearTimeout(timeoutId));
+                            window.diagnosticTimeouts.clear();
+                        }
+                        
                         setDiagnosticRunning(false);
+                        
                         if (status === 'SUCCESS') {
                             setDiagnosticResults(prev => {
                                 const updatedResults = (prev || '') + '\n\n✅ Diagnostic completed successfully!';
@@ -1300,7 +1314,7 @@
                         }
                     } catch (diagError) {
                         console.error('Error handling diagnostic completion:', diagError);
-                        setDiagnosticError('Failed to complete diagnostic process');
+                        setDiagnosticError('Failed to complete diagnostic process: ' + diagError.message);
                         setDiagnosticRunning(false);
                     }
                     return; // Don't process as sensor data
@@ -1631,13 +1645,20 @@
                                 // Auto-switch to diagnostics tab when command is sent
                                 setActiveTab('diagnostics');
                                 
-                                setTimeout(() => {
-                                    if (diagnosticRunning) {
-                                        setDiagnosticError('⏰ Diagnostic timeout - no response from device after 45 seconds');
-                                        setDiagnosticRunning(false);
-                                        setDiagnosticResults(prev => prev + '\n❌ TIMEOUT: Device did not respond within 45 seconds\n\nPossible causes:\n• Device is not connected\n• Device is busy with other operations\n• BLE connection is unstable\n• Device firmware issue\n\nTry disconnecting and reconnecting, then run diagnostics again.');
-                                    }
+                                const timeoutId = setTimeout(() => {
+                                    setDiagnosticRunning(prevRunning => {
+                                        if (prevRunning) {
+                                            setDiagnosticError('⏰ Diagnostic timeout - no response from device after 45 seconds');
+                                            setDiagnosticResults(prev => prev + '\n❌ TIMEOUT: Device did not respond within 45 seconds\n\nPossible causes:\n• Device is not connected\n• Device is busy with other operations\n• BLE connection is unstable\n• Device firmware issue\n\nTry disconnecting and reconnecting, then run diagnostics again.');
+                                            return false;
+                                        }
+                                        return prevRunning;
+                                    });
                                 }, 45000); // 45 second timeout (increased from 30)
+                                
+                                // Store timeout ID for cleanup
+                                if (!window.diagnosticTimeouts) window.diagnosticTimeouts = new Set();
+                                window.diagnosticTimeouts.add(timeoutId);
                             }
                             
                         } catch (writeError) {
