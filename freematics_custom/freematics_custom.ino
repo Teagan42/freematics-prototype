@@ -1147,8 +1147,8 @@ private:
 #endif
     }
     
-#if USE_FALLBACK_CAN
     bool sendCANOBDRequest(uint8_t pid, int& value) {
+#if USE_FALLBACK_CAN
         // OBD-II CAN frame format:
         // ID: 0x7DF (functional request) or 0x7E0-0x7E7 (physical request)
         // Data: [Length, Mode, PID, 0x55, 0x55, 0x55, 0x55, 0x55]
@@ -1200,8 +1200,12 @@ private:
         lastError = "CAN OBD timeout for PID 0x" + String(pid, HEX);
         lastErrorTime = millis();
         return false;
-    }
+#else
+        lastError = "CAN OBD not enabled in configuration";
+        lastErrorTime = millis();
+        return false;
 #endif
+    }
 
 #if USE_SERIAL_OBD
     bool initSerialOBDInterface() {
