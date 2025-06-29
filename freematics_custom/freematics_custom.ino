@@ -19,9 +19,9 @@
 // Simplified OBD class definitions
 class CFreematicsESP32 {
 public:
-    bool begin() { 
+    bool begin() {
         Serial.println("  Using fallback CFreematicsESP32 implementation");
-        return true; 
+        return true;
     }
     void* link = nullptr;
 };
@@ -31,12 +31,12 @@ public:
     void begin(void* sys) {
         Serial.println("  Using fallback COBD implementation");
     }
-    bool init(int protocol) { 
+    bool init(int protocol) {
         Serial.println("  Fallback OBD init for protocol " + String(protocol));
-        return false; 
+        return false;
     }
-    bool readPID(uint8_t pid, int& value) { 
-        return false; 
+    bool readPID(uint8_t pid, int& value) {
+        return false;
     }
 };
 
@@ -90,17 +90,17 @@ public:
     static void println(const String& message) {
         // Send to actual Serial
         Serial.println(message);
-        
+
         // Store in buffer for BLE transmission
         if (bleClientConnected) {
             addSerialMessage(message);
         }
     }
-    
+
     static void print(const String& message) {
         // Send to actual Serial
         Serial.print(message);
-        
+
         // Store in buffer for BLE transmission (only if it ends with newline)
         if (bleClientConnected && message.endsWith("\n")) {
             String cleanMsg = message;
@@ -108,18 +108,18 @@ public:
             addSerialMessage(cleanMsg);
         }
     }
-    
+
 private:
     static void addSerialMessage(const String& message) {
         if (message.length() == 0 || message.length() > MAX_SERIAL_MSG_LENGTH) {
             return; // Skip empty or too long messages
         }
-        
+
         // Add to circular buffer
         serialBuffer[serialBufferIndex].message = message;
         serialBuffer[serialBufferIndex].timestamp = millis();
         serialBuffer[serialBufferIndex].used = false;
-        
+
         serialBufferIndex = (serialBufferIndex + 1) % SERIAL_BUFFER_SIZE;
         if (serialBufferCount < SERIAL_BUFFER_SIZE) {
             serialBufferCount++;
@@ -134,7 +134,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
         BLESerial::println("=== BLE CLIENT CONNECTED ===");
         BLESerial::println("Client MAC: " + String(pServer->getConnId()));
         BLESerial::println("Starting data collection...");
-        
+
         // Send immediate connection confirmation with API version
         if (pCharacteristic) {
             String connectMsg = "0:" + String(millis()) + ",CONNECT:SUCCESS,API_VERSION:" + String(API_VERSION) + ";";
@@ -158,33 +158,33 @@ class MyServerCallbacks: public BLEServerCallbacks {
 // Hardware and OBD-II interface with real sensor data
 class SimpleOBD {
 private:
-    bool realOBDAvailable = false;
+    bool realOBDAvailable = true;
     String lastError = "";
     unsigned long lastErrorTime = 0;
     bool obdInitialized = false;
-    
+
     CFreematicsESP32 sys;
     COBD obd;
-    
+
 public:
-    bool init() { 
+    bool init() {
         // Initialize hardware sensors first
         Serial.print("Initializing hardware sensors...");
-        
+
         // Hardware sensors are always available on Freematics devices
         Serial.println("OK");
-        
+
         // Initialize OBD-II communication interface
         Serial.print("Initializing OBD-II interface...");
-        
+
         // Try multiple initialization methods for different OBD interfaces
         if (initOBDInterface()) {
             obdInitialized = true;
             Serial.println("OBD interface initialized");
-            
+
             // Test OBD-II connection with vehicle
             Serial.print("Testing OBD-II connection...");
-            
+
             int testValue;
             if (attemptRealOBDRead(0x0C, testValue)) {
                 realOBDAvailable = true;
@@ -198,37 +198,37 @@ public:
                 return true; // Still return true to allow hardware sensor readings
             }
         } else {
-            obdInitialized = false;
-            realOBDAvailable = false;
+            // obdInitialized = false;
+            // realOBDAvailable = false;
             lastError = "OBD interface initialization failed";
             Serial.println("Failed, hardware sensors only");
             return true; // Still return true to allow hardware sensor readings
         }
     }
-    
+
     bool initOBDInterface() {
         Serial.println("=== SIMPLIFIED OBD-II INITIALIZATION ===");
         Serial.println("Hardware: Freematics ONE+ with co-processor");
         Serial.println("Using simplified OBD implementation");
-        
+
         // Initialize Freematics co-processor
         Serial.print("Initializing co-processor...");
         if (!sys.begin()) {
             Serial.println("FAILED");
             lastError = "Co-processor initialization failed";
             lastErrorTime = millis();
-            
+
             // Try serial OBD as fallback
             Serial.println("Trying Serial OBD fallback...");
             return initSerialOBDInterface();
         }
         Serial.println("OK");
-        
+
         // Initialize OBD library
         Serial.print("Initializing OBD library...");
         obd.begin(&sys);
         Serial.println("OK");
-        
+
         // Initialize CAN bus protocol
         Serial.print("Connecting to CAN bus (ISO15765 11-bit 500K)...");
         int attempts = 0;
@@ -237,12 +237,12 @@ public:
             delay(1000);
             attempts++;
         }
-        
+
         if (attempts >= 10) {
             Serial.println("FAILED");
             lastError = "CAN bus initialization timeout";
             lastErrorTime = millis();
-            
+
             // Try alternative protocols
             Serial.print("Trying ISO15765 29-bit 500K...");
             attempts = 0;
@@ -251,67 +251,67 @@ public:
                 delay(1000);
                 attempts++;
             }
-            
+
             if (attempts >= 5) {
                 Serial.println("FAILED");
                 lastError = "All CAN protocols failed";
                 lastErrorTime = millis();
-                
+
                 // Try serial OBD as final fallback
                 Serial.println("Trying Serial OBD fallback...");
                 return initSerialOBDInterface();
             }
         }
-        
+
         Serial.println("OK");
         return true;
     }
-    
+
     bool initCANInterface() {
         Serial.println("  Setting up CAN TX (GPIO4) and RX (GPIO5) pins...");
-        
+
         // Configure GPIO pins for CAN communication
         pinMode(CAN_TX_PIN, OUTPUT);
         pinMode(CAN_RX_PIN, INPUT);
-        
+
         // Test pin connectivity
         digitalWrite(CAN_TX_PIN, HIGH);
         delay(10);
         bool txPinWorking = digitalRead(CAN_TX_PIN) == HIGH;
-        
+
         digitalWrite(CAN_TX_PIN, LOW);
         delay(10);
         bool txPinToggle = digitalRead(CAN_TX_PIN) == LOW;
-        
+
         Serial.println("  CAN TX Pin (GPIO4) test: " + String(txPinWorking && txPinToggle ? "PASS" : "FAIL"));
         Serial.println("  CAN RX Pin (GPIO5) state: " + String(digitalRead(CAN_RX_PIN) ? "HIGH" : "LOW"));
-        
+
         // CAN driver not available in this Arduino Core version
         Serial.println("  CAN driver not available - using Serial fallback only");
         return false;
     }
-    
+
     bool sendATCommand(const String& command, const String& expectedResponse, unsigned long timeout) {
         return sendATCommandWithResponse(command, expectedResponse, timeout, nullptr);
     }
-    
+
     bool sendATCommandFlexible(const String& command, unsigned long timeout) {
         // Clear input buffer
         while (Serial2.available()) {
             Serial2.read();
         }
-        
+
         Serial.println("    Sending: " + command);
-        
+
         // Send command
         Serial2.print(command + "\r");
         Serial2.flush();
-        
+
         // Wait for any response
         String response = "";
         unsigned long startTime = millis();
         bool gotResponse = false;
-        
+
         while (millis() - startTime < timeout) {
             if (Serial2.available()) {
                 char c = Serial2.read();
@@ -326,35 +326,35 @@ public:
             }
             delay(1);
         }
-        
+
         response.trim();
         Serial.println("    Response: " + (response.length() > 0 ? response : "NO RESPONSE"));
-        
+
         // Accept any reasonable response (ELM327, v1.5, OK, etc.)
         return gotResponse && response.length() > 0;
     }
-    
+
     bool sendATCommandWithResponse(const String& command, const String& expectedResponse, unsigned long timeout, String* actualResponse) {
         // Clear input buffer
         while (Serial2.available()) {
             Serial2.read();
         }
-        
+
         Serial.println("    Sending: " + command + " (expecting: " + expectedResponse + ")");
-        
+
         // Send command with proper termination
         Serial2.print(command + "\r");
         Serial2.flush();
-        
+
         // Wait for response
         String response = "";
         unsigned long startTime = millis();
         bool foundPrompt = false;
-        
+
         while (millis() - startTime < timeout && !foundPrompt) {
             if (Serial2.available()) {
                 char c = Serial2.read();
-                
+
                 if (c == '>') {
                     // ELM327 prompt - end of response
                     foundPrompt = true;
@@ -370,58 +370,58 @@ public:
             }
             delay(1);
         }
-        
+
         response.trim();
         response.toUpperCase();
-        
+
         if (actualResponse) {
             *actualResponse = response;
         }
-        
+
         Serial.println("    Response: " + (response.length() > 0 ? response : "NO RESPONSE"));
-        
+
         // Check if response contains expected string
         bool success = response.indexOf(expectedResponse.c_str()) >= 0;
-        
+
         if (!success && response.length() > 0) {
             Serial.println("    Expected '" + expectedResponse + "' but got '" + response + "'");
         }
-        
+
         return success;
     }
-    
+
     bool testOBDCommunication() {
         Serial.println("    Testing OBD communication...");
-        
+
         // Try to get supported PIDs (01 00)
         String response;
         if (sendATCommandWithResponse("0100", "4100", 2000, &response)) {
             Serial.println("    OBD communication test: PASS");
             return true;
         }
-        
+
         // Try alternative test - get VIN (09 02)
         if (sendATCommandWithResponse("0902", "4902", 2000, &response)) {
             Serial.println("    OBD communication test: PASS (VIN response)");
             return true;
         }
-        
+
         // Try simple engine RPM request (01 0C)
         if (sendATCommandWithResponse("010C", "410C", 2000, &response)) {
             Serial.println("    OBD communication test: PASS (RPM response)");
             return true;
         }
-        
+
         Serial.println("    OBD communication test: FAIL (no valid responses)");
         return false;
     }
-    
+
     bool readPID(uint8_t pid, int& value) {
         // Try hardware sensors first for supported PIDs
         if (readHardwareSensor(pid, value)) {
             return true;
         }
-        
+
         // Try real OBD-II for engine-specific data
         if (realOBDAvailable && isOBDOnlyPID(pid)) {
             if (attemptRealOBDRead(pid, value)) {
@@ -435,7 +435,7 @@ public:
                         return true;
                     }
                 }
-                
+
                 // Mark as unavailable
                 realOBDAvailable = false;
                 lastError = "Real OBD-II read failed for PID 0x" + String(pid, HEX);
@@ -443,16 +443,16 @@ public:
                 Serial.println("OBD-II connection lost");
             }
         }
-        
+
         // No data available
         lastError = "No data source available for PID 0x" + String(pid, HEX);
         return false;
     }
-    
+
     // Get all available PIDs for this vehicle
     bool getSupportedPIDs(uint8_t* pidList, int& pidCount) {
         pidCount = 0;
-        
+
         // Standard EPA-required PIDs for emissions compliance
         uint8_t standardPIDs[] = {
             PID_ENGINE_LOAD, PID_COOLANT_TEMP, PID_SHORT_TERM_FUEL_TRIM_1, PID_LONG_TERM_FUEL_TRIM_1,
@@ -467,28 +467,28 @@ public:
             PID_TIME_WITH_MIL_ON, PID_TIME_SINCE_CODES_CLEARED, PID_FUEL_TYPE, PID_ETHANOL_FUEL_PERCENT,
             PID_ENGINE_OIL_TEMP, PID_FUEL_INJECTION_TIMING, PID_ENGINE_FUEL_RATE
         };
-        
+
         int standardCount = sizeof(standardPIDs) / sizeof(standardPIDs[0]);
         for (int i = 0; i < standardCount && pidCount < 100; i++) {
             pidList[pidCount++] = standardPIDs[i];
         }
-        
+
         // Add hardware sensor PIDs
         pidList[pidCount++] = PID_BATTERY_VOLTAGE;
         pidList[pidCount++] = PID_ENGINE_PRESSURE;
-        
+
         return true;
     }
-    
+
     bool isUsingRealData() {
         return realOBDAvailable;
     }
-    
-    
-    
+
+
+
     String runFullDiagnostics() {
         String results = "";
-        
+
         // ESP32 System Information
         results += "=== ESP32 SYSTEM INFO ===|";
         results += "Chip Model: " + String(ESP.getChipModel()) + "|";
@@ -498,14 +498,14 @@ public:
         results += "Free Heap: " + String(ESP.getFreeHeap()) + " bytes|";
         results += "Uptime: " + String(millis() / 1000) + " seconds|";
         results += "|";
-        
+
         // Power Supply Analysis
         results += "=== POWER SUPPLY ANALYSIS ===|";
         int vinRaw = analogRead(A0);
         float vinVoltage = (vinRaw / 4095.0) * 3.3 * 6.0; // 6:1 voltage divider
         results += "VIN Raw ADC: " + String(vinRaw) + " (0-4095)|";
         results += "VIN Voltage: " + String(vinVoltage, 2) + "V|";
-        
+
         // Adjust status check for different power sources
         String vinStatus;
         if (vinVoltage > 11.0 && vinVoltage < 16.0) {
@@ -520,33 +520,33 @@ public:
         results += "VIN Status: " + vinStatus + "|";
         results += "3.3V Rail: " + String(analogRead(36) > 100 ? "OK" : "FAIL") + "|";
         results += "|";
-        
+
         // ADC Pin Testing
         results += "=== ADC PIN TESTING ===|";
         int adcPins[] = {36, 39, 34, 35, 32, 33, 25, 26, 27, 14, 12, 13};
-        String adcNames[] = {"VP(36)", "VN(39)", "GPIO34", "GPIO35", "GPIO32", "GPIO33", 
+        String adcNames[] = {"VP(36)", "VN(39)", "GPIO34", "GPIO35", "GPIO32", "GPIO33",
                            "GPIO25", "GPIO26", "GPIO27", "GPIO14", "GPIO12", "GPIO13"};
-        
+
         for (int i = 0; i < 12; i++) {
             int value = analogRead(adcPins[i]);
             float voltage = (value / 4095.0) * 3.3;
             results += adcNames[i] + ": " + String(value) + " (" + String(voltage, 2) + "V)|";
         }
         results += "|";
-        
+
         // Digital Pin State Testing
         results += "=== DIGITAL PIN TESTING ===|";
         int digitalPins[] = {2, 4, 5, 16, 17, 18, 19, 21, 22, 23};
-        String digitalNames[] = {"GPIO2(LED)", "GPIO4(CAN_TX)", "GPIO5(CAN_RX)", 
-                               "GPIO16(OBD_RX)", "GPIO17(OBD_TX)", "GPIO18(SPI_SCK)", 
+        String digitalNames[] = {"GPIO2(LED)", "GPIO4(CAN_TX)", "GPIO5(CAN_RX)",
+                               "GPIO16(OBD_RX)", "GPIO17(OBD_TX)", "GPIO18(SPI_SCK)",
                                "GPIO19(SPI_MISO)", "GPIO21(I2C_SDA)", "GPIO22(I2C_SCL)", "GPIO23(SPI_MOSI)"};
-        
+
         for (int i = 0; i < 10; i++) {
             pinMode(digitalPins[i], INPUT_PULLUP);
             delay(10);
             bool state = digitalRead(digitalPins[i]);
             results += digitalNames[i] + ": " + String(state ? "HIGH" : "LOW");
-            
+
             // Add functional notes for key pins
             if (digitalPins[i] == CAN_TX_PIN) {
                 results += " (CAN transmit to SN65HVD230)";
@@ -560,7 +560,7 @@ public:
             results += "|";
         }
         results += "|";
-        
+
         // I2C Bus Scanning
         results += "=== I2C BUS SCAN (SDA=21, SCL=22) ===|";
         Wire.begin(21, 22); // SDA=21, SCL=22
@@ -578,11 +578,11 @@ public:
             results += "Total I2C devices: " + String(deviceCount) + "|";
         }
         results += "|";
-        
+
         // SPI Pin State Verification
         results += "=== SPI PIN VERIFICATION ===|";
         pinMode(19, INPUT_PULLUP); // MISO
-        pinMode(23, INPUT_PULLUP); // MOSI  
+        pinMode(23, INPUT_PULLUP); // MOSI
         pinMode(18, INPUT_PULLUP); // SCK
         pinMode(5, INPUT_PULLUP);  // SS
         delay(10);
@@ -591,7 +591,7 @@ public:
         results += "SCK(18): " + String(digitalRead(18) ? "HIGH" : "LOW") + "|";
         results += "SS(5): " + String(digitalRead(5) ? "HIGH" : "LOW") + "|";
         results += "|";
-        
+
         // OBD-II Interface Testing
         results += "=== OBD-II INTERFACE TESTING ===|";
 #if USE_FREEMATICS_LIBRARY
@@ -610,13 +610,13 @@ public:
         results += "CAN Bus Pins: GPIO4 (TX), GPIO5 (RX)|";
         results += "Serial Pins: GPIO16 (RX), GPIO17 (TX)|";
         results += "|";
-        
+
         // Test CAN bus pins
         results += "=== CAN BUS PIN TESTING ===|";
         pinMode(CAN_TX_PIN, OUTPUT);
         pinMode(CAN_RX_PIN, INPUT_PULLUP);
         delay(10);
-        
+
         // Test CAN TX pin
         digitalWrite(CAN_TX_PIN, HIGH);
         delay(10);
@@ -625,37 +625,37 @@ public:
         delay(10);
         bool canTxLow = digitalRead(CAN_TX_PIN) == LOW;
         results += "CAN TX (GPIO4): " + String(canTxHigh && canTxLow ? "FUNCTIONAL" : "FAIL") + "|";
-        
+
         // Test CAN RX pin
         bool canRxState = digitalRead(CAN_RX_PIN);
         results += "CAN RX (GPIO5): " + String(canRxState ? "HIGH" : "LOW") + " (pullup active)|";
         results += "CAN Driver: NOT AVAILABLE (Arduino Core 3.2.0)|";
         results += "|";
-        
+
         // Test Serial OBD interface
         results += "=== SERIAL OBD TESTING ===|";
         results += "Testing Serial2 interface...|";
-        
+
         // Test multiple baud rates with improved ELM327 detection
         int baudRates[] = {38400, 9600, 115200, 57600};
         bool obdResponsive = false;
         String bestResponse = "";
         int bestBaud = 0;
-        
+
         for (int i = 0; i < 4; i++) {
             Serial2.begin(baudRates[i], SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
             delay(200); // More time for baud rate stabilization
-            
+
             // Clear buffer
             while (Serial2.available()) {
                 Serial2.read();
             }
-            
+
             // Send ELM327 reset command
             Serial2.print("ATZ\r");
             Serial2.flush();
             delay(1500); // ELM327 needs time to reset
-            
+
             String response = "";
             unsigned long startTime = millis();
             while (millis() - startTime < 2000) {
@@ -671,15 +671,15 @@ public:
                 }
                 delay(1);
             }
-            
+
             response.trim();
-            
+
             if (response.length() > 0) {
                 results += "Baud " + String(baudRates[i]) + ": RESPONSE|";
                 results += "  Content: " + response.substring(0, min(30, (int)response.length())) + "|";
-                
+
                 // Check for ELM327 indicators
-                if (response.indexOf("ELM327") >= 0 || response.indexOf("v1.") >= 0 || 
+                if (response.indexOf("ELM327") >= 0 || response.indexOf("v1.") >= 0 ||
                     response.indexOf("v2.") >= 0 || response.indexOf("OBD") >= 0) {
                     results += "  Type: ELM327 Compatible|";
                     obdResponsive = true;
@@ -693,14 +693,14 @@ public:
                         bestBaud = baudRates[i];
                     }
                 }
-                
+
                 // Test basic communication
                 delay(500);
                 while (Serial2.available()) Serial2.read(); // Clear buffer
                 Serial2.print("ATE0\r");
                 Serial2.flush();
                 delay(500);
-                
+
                 String echoResponse = "";
                 startTime = millis();
                 while (millis() - startTime < 1000 && Serial2.available()) {
@@ -709,30 +709,30 @@ public:
                         echoResponse += c;
                     }
                 }
-                
+
                 if (echoResponse.indexOf("OK") >= 0) {
                     results += "  Echo Test: PASS|";
                 } else {
                     results += "  Echo Test: FAIL (" + echoResponse + ")|";
                 }
-                
+
             } else {
                 results += "Baud " + String(baudRates[i]) + ": NO RESPONSE|";
             }
-            
+
             Serial2.end();
             delay(100);
         }
-        
+
         if (obdResponsive && bestBaud > 0) {
             results += "|Best Interface: " + String(bestBaud) + " baud|";
             results += "Best Response: " + bestResponse + "|";
         }
-        
+
         results += "|";
         results += "Serial OBD Status: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
         results += "CAN Bus Status: NOT IMPLEMENTED (requires CAN driver)|";
-        
+
         // Prioritize Freematics ONE+ co-processor interface
 #if USE_FREEMATICS_LIBRARY
         results += "PRIMARY: Freematics ONE+ co-processor interface ENABLED|";
@@ -742,32 +742,32 @@ public:
         results += "Fallback: Consider ESP32 CAN driver for GPIO4/5 if co-processor unavailable|";
 #endif
         results += "|";
-        
+
         // BLE System Verification
         results += "=== BLE SYSTEM VERIFICATION ===|";
         results += "BLE Initialized: " + String(BLEDevice::getInitialized() ? "YES" : "NO") + "|";
         results += "BLE Server: " + String(pServer != NULL ? "ACTIVE" : "NULL") + "|";
         results += "BLE Characteristic: " + String(pCharacteristic != NULL ? "ACTIVE" : "NULL") + "|";
         results += "Client Connected: " + String(bleClientConnected ? "YES" : "NO") + "|";
-        
+
         // Get BLE address
         String bleAddress = BLEDevice::getAddress().toString().c_str();
         results += "BLE Address: " + bleAddress + "|";
         results += "|";
-        
+
         // Memory Analysis
         results += "=== MEMORY ANALYSIS ===|";
         results += "Free Heap: " + String(ESP.getFreeHeap()) + " bytes|";
         results += "Min Free Heap: " + String(ESP.getMinFreeHeap()) + " bytes|";
         results += "Heap Size: " + String(ESP.getHeapSize()) + " bytes|";
         results += "Free PSRAM: " + String(ESP.getFreePsram()) + " bytes|";
-        
+
         // Calculate memory health
         float heapUsage = ((float)(ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize()) * 100;
         results += "Heap Usage: " + String(heapUsage, 1) + "%|";
         results += "Memory Health: " + String(heapUsage < 80 ? "GOOD" : "WARNING") + "|";
         results += "|";
-        
+
         // Temperature Monitoring
         results += "=== TEMPERATURE MONITORING ===|";
         #ifdef SOC_TEMP_SENSOR_SUPPORTED
@@ -777,7 +777,7 @@ public:
         #else
         results += "ESP32 Internal: NOT SUPPORTED|";
         #endif
-        
+
         // External temperature sensor test
         int tempSensorValue = analogRead(36);
         if (tempSensorValue > 100 && tempSensorValue < 4000) {
@@ -788,10 +788,10 @@ public:
             results += "External Sensor: NOT DETECTED (GPIO36)|";
         }
         results += "|";
-        
+
         // System Health Summary
         results += "=== SYSTEM HEALTH SUMMARY ===|";
-        
+
         // Count issues (adjust power supply check)
         int issues = 0;
         // Only flag power as issue if voltage is dangerously low or high
@@ -804,16 +804,16 @@ public:
         if (!BLEDevice::getInitialized()) issues++;
         if (!obdResponsive) issues++;
         if (!canTxHigh || !canTxLow) issues++; // CAN TX pin issue
-        
+
         results += "Issues Found: " + String(issues) + "|";
-        results += "Overall Status: " + String(issues == 0 ? "EXCELLENT" : 
-                                              issues <= 2 ? "GOOD" : 
+        results += "Overall Status: " + String(issues == 0 ? "EXCELLENT" :
+                                              issues <= 2 ? "GOOD" :
                                               issues <= 4 ? "WARNING" : "CRITICAL") + "|";
-        
+
         // OBD-II specific status - simplified
         results += "|=== OBD-II COMMUNICATION STATUS ===|";
         results += "PRIORITY ORDER: 1=Freematics Co-processor, 2=Serial OBD|";
-        
+
         results += "1. FreematicsPlus Library: ENABLED (PRIMARY)|";
         results += "   Co-processor Status: " + String(obdInitialized ? "READY" : "FAILED") + "|";
         if (obdInitialized) {
@@ -827,7 +827,7 @@ public:
         } else {
             results += "   Status: " + String(obdResponsive ? "ACTIVE FALLBACK" : "UNAVAILABLE") + "|";
         }
-        
+
         results += "|Current Active Method: ";
         if (obdInitialized && realOBDAvailable) {
             results += "FREEMATICS CO-PROCESSOR|";
@@ -836,7 +836,7 @@ public:
         } else {
             results += String(realOBDAvailable ? "FALLBACK METHOD" : "DISCONNECTED") + "|";
         }
-        
+
         // Recommendations
         if (issues > 0) {
             results += "|=== RECOMMENDATIONS ===|";
@@ -857,7 +857,7 @@ public:
             results += "• Freematics co-processor is preferred over direct CAN|";
             results += "• Verify SN65HVD230 transceiver power and connections|";
         }
-        
+
         // Add power source information
         results += "|=== POWER SOURCE ANALYSIS ===|";
         if (vinVoltage > 11.0 && vinVoltage < 16.0) {
@@ -870,18 +870,18 @@ public:
             results += "• External power adapter detected|";
             results += "• Verify power source compatibility|";
         }
-        
+
         return results;
     }
-    
+
     String getLastError() {
         return lastError;
     }
-    
+
     unsigned long getLastErrorTime() {
         return lastErrorTime;
     }
-    
+
 private:
     bool readHardwareSensor(uint8_t pid, int& value) {
         // Read directly from Freematics hardware sensors
@@ -905,7 +905,7 @@ private:
                 return false; // Not a hardware sensor PID
         }
     }
-    
+
     bool isOBDOnlyPID(uint8_t pid) {
         // These PIDs require OBD-II connection to ECU
         switch(pid) {
@@ -924,7 +924,7 @@ private:
             case PID_INTAKE_TEMP:
             case PID_MAF_FLOW:
             case PID_THROTTLE_POS:
-            
+
             // Oxygen Sensors
             case PID_O2_S1_VOLTAGE:
             case PID_O2_S2_VOLTAGE:
@@ -934,7 +934,7 @@ private:
             case PID_O2_S6_VOLTAGE:
             case PID_O2_S7_VOLTAGE:
             case PID_O2_S8_VOLTAGE:
-            
+
             // Emissions Control
             case PID_COMMANDED_EGR:
             case PID_EGR_ERROR:
@@ -945,7 +945,7 @@ private:
             case PID_CATALYST_TEMP_B2S1:
             case PID_CATALYST_TEMP_B1S2:
             case PID_CATALYST_TEMP_B2S2:
-            
+
             // Advanced Engine Parameters
             case PID_FUEL_RAIL_PRESSURE:
             case PID_FUEL_RAIL_GAUGE_PRESSURE:
@@ -958,14 +958,14 @@ private:
             case PID_ACCELERATOR_PEDAL_POS_E:
             case PID_ACCELERATOR_PEDAL_POS_F:
             case PID_COMMANDED_THROTTLE_ACTUATOR:
-            
+
             // Fuel System
             case PID_FUEL_TYPE:
             case PID_ETHANOL_FUEL_PERCENT:
             case PID_ENGINE_OIL_TEMP:
             case PID_FUEL_INJECTION_TIMING:
             case PID_ENGINE_FUEL_RATE:
-            
+
             // Diagnostic Information
             case PID_OBD_STANDARDS:
             case PID_O2_SENSORS_PRESENT:
@@ -980,7 +980,7 @@ private:
                 return false;
         }
     }
-    
+
     int readDeviceInputVoltage() {
         // Read device input voltage (Vin) from ADC
         // Freematics ONE+ has Vin connected to A0 with voltage divider
@@ -990,14 +990,14 @@ private:
         float voltage = (adcValue / 4095.0) * 3.3 * 6.0; // 6:1 voltage divider
         return (int)(voltage * 100); // Return in centivolt for precision
     }
-    
+
     int readAmbientTemperature() {
         // Try to read ambient temperature from OBD-II first
         int obdTemp;
         if (realOBDAvailable && attemptRealOBDRead(0x46, obdTemp)) {
             return obdTemp; // Return OBD ambient temperature
         }
-        
+
         // Fallback: read from external temperature sensor if connected
         // Check if external sensor is connected to GPIO36 (A0 equivalent on ESP32)
         int sensorValue = analogRead(36);
@@ -1007,7 +1007,7 @@ private:
             float temp_celsius = (voltage - 0.5) * 100.0;
             return (int)temp_celsius;
         }
-        
+
         // Last resort: use ESP32 internal temperature as rough estimate
         #ifdef SOC_TEMP_SENSOR_SUPPORTED
         float temp_celsius = temperatureRead();
@@ -1017,7 +1017,7 @@ private:
         return 25; // Default ambient temperature
         #endif
     }
-    
+
     int readBarometricPressure() {
         // Read atmospheric pressure from device barometric sensor
         // Could be connected to BMP280 or similar sensor
@@ -1031,53 +1031,53 @@ private:
             lastErrorTime = millis();
             return false;
         }
-        
+
         // Try FreematicsPlus OBD library first
         if (obd.readPID(pid, value)) {
             return true;
         }
-        
+
         // Try Serial OBD as fallback
         if (attemptSerialOBDRead(pid, value)) {
             return true;
         }
-        
+
         lastError = "All OBD read methods failed for PID 0x" + String(pid, HEX);
         lastErrorTime = millis();
         return false;
     }
-    
+
 
     bool initSerialOBDInterface() {
         // Try UART-based OBD interface (ELM327 style)
         Serial.print("Initializing Serial OBD interface (GPIO16/17)...");
         Serial2.begin(38400, SERIAL_8N1, OBD_SERIAL_RX, OBD_SERIAL_TX);
         delay(100);
-        
+
         // Clear any existing data
         while (Serial2.available()) {
             Serial2.read();
         }
-        
+
         // Send AT commands for ELM327-style initialization
         Serial.println("  Attempting ELM327 initialization sequence...");
-        
+
         // Step 1: Reset and wait for any response (ELM327, v1.5, etc.)
         if (sendATCommandFlexible("ATZ", 3000)) {
             delay(1000); // ELM327 needs time after reset
-            
+
             // Step 2: Turn off echo
             if (sendATCommand("ATE0", "OK", 1000)) {
                 delay(100);
-                
-                // Step 3: Turn off line feeds  
+
+                // Step 3: Turn off line feeds
                 if (sendATCommand("ATL0", "OK", 1000)) {
                     delay(100);
-                    
+
                     // Step 4: Set automatic protocol detection
                     if (sendATCommand("ATSP0", "OK", 1000)) {
                         delay(100);
-                        
+
                         // Step 5: Test basic OBD communication
                         if (testOBDCommunication()) {
                             Serial.println("  ELM327-style interface ready and tested");
@@ -1090,7 +1090,7 @@ private:
                 }
             }
         }
-        
+
         Serial.println("Serial OBD interface initialization failed");
         return false;
     }
@@ -1104,26 +1104,26 @@ private:
             obdRequest += String(pid, HEX);
         }
         obdRequest.toUpperCase();
-        
+
         // Clear input buffer
         while (Serial2.available()) {
             Serial2.read();
         }
-        
+
         // Send request with proper termination
         Serial2.print(obdRequest + "\r");
         Serial2.flush();
-        
+
         // Wait for response
         String fullResponse = "";
         String currentLine = "";
         unsigned long startTime = millis();
         bool foundPrompt = false;
-        
+
         while (millis() - startTime < 3000 && !foundPrompt) {
             if (Serial2.available()) {
                 char c = Serial2.read();
-                
+
                 if (c == '>') {
                     foundPrompt = true;
                     if (currentLine.length() > 0) {
@@ -1141,51 +1141,51 @@ private:
             }
             delay(1);
         }
-        
+
         // Process the response
         fullResponse.trim();
         fullResponse.replace(" ", "");
         fullResponse.toUpperCase();
-        
+
         String pidHex = String(pid, HEX);
         if (pid < 0x10) pidHex = "0" + pidHex;
         pidHex.toUpperCase();
         String expectedStart = "41" + pidHex;
-        
+
         int startPos = fullResponse.indexOf(expectedStart);
         if (startPos >= 0) {
             int endPos = fullResponse.indexOf("|", startPos);
             if (endPos < 0) endPos = fullResponse.length();
-            
+
             String responseLine = fullResponse.substring(startPos, endPos);
             String dataBytes = responseLine.substring(expectedStart.length());
-            
+
             if (parseOBDResponse(pid, dataBytes, value)) {
                 return true;
             }
         }
-        
+
         lastError = "No valid response for PID 0x" + String(pid, HEX);
         lastErrorTime = millis();
         return false;
     }
-    
+
     bool parseOBDResponse(uint8_t pid, String dataBytes, int& value) {
         // Parse OBD-II response data based on PID
         dataBytes.trim();
         dataBytes.replace(" ", ""); // Remove spaces
         dataBytes.toUpperCase();
-        
+
         // Validate minimum data length
         if (dataBytes.length() < 2) {
             lastError = "Insufficient data for PID 0x" + String(pid, HEX);
             lastErrorTime = millis();
             return false;
         }
-        
+
         // Get data bytes as integers
         int A = 0, B = 0, C = 0, D = 0;
-        
+
         // Parse hex bytes safely
         if (dataBytes.length() >= 2) {
             A = (int)strtol(dataBytes.substring(0, 2).c_str(), NULL, 16);
@@ -1199,7 +1199,7 @@ private:
         if (dataBytes.length() >= 8) {
             D = (int)strtol(dataBytes.substring(6, 8).c_str(), NULL, 16);
         }
-        
+
         switch(pid) {
             // Engine Management
             case PID_ENGINE_LOAD:
@@ -1240,7 +1240,7 @@ private:
             case PID_THROTTLE_POS:
                 value = (A * 100) / 255; // Throttle position %
                 return true;
-                
+
             // Oxygen Sensors
             case PID_O2_S1_VOLTAGE:
             case PID_O2_S2_VOLTAGE:
@@ -1252,7 +1252,7 @@ private:
             case PID_O2_S8_VOLTAGE:
                 value = A / 200; // O2 sensor voltage (0.0-1.275V)
                 return true;
-                
+
             // System Information
             case PID_OBD_STANDARDS:
                 value = A; // OBD standards compliance
@@ -1263,7 +1263,7 @@ private:
             case PID_RUNTIME:
                 value = (A * 256) + B; // Runtime since engine start (seconds)
                 return true;
-                
+
             // Emissions Control
             case PID_DISTANCE_WITH_MIL:
                 value = (A * 256) + B; // Distance with MIL on (km)
@@ -1283,7 +1283,7 @@ private:
             case PID_FUEL_TANK_LEVEL:
                 value = (A * 100) / 255; // Fuel tank level %
                 return true;
-                
+
             // Advanced Parameters
             case PID_WARMUPS_SINCE_CODES_CLEARED:
                 value = A; // Number of warm-ups since codes cleared
@@ -1333,7 +1333,7 @@ private:
             case PID_TIME_SINCE_CODES_CLEARED:
                 value = (A * 256) + B; // Time since codes cleared (minutes)
                 return true;
-                
+
             // Fuel System
             case PID_FUEL_TYPE:
                 value = A; // Fuel type code
@@ -1350,7 +1350,7 @@ private:
             case PID_ENGINE_FUEL_RATE:
                 value = ((A * 256) + B) / 20; // Engine fuel rate L/h
                 return true;
-                
+
             // Turbo/Boost Control PIDs
             case PID_BOOST_PRESSURE_CONTROL:
                 value = A; // Boost pressure control percentage
@@ -1361,18 +1361,18 @@ private:
             case PID_EXHAUST_GAS_TEMP_BANK_1:
                 value = ((A * 256) + B) / 10 - 40; // Exhaust gas temperature °C
                 return true;
-                
+
             default:
                 lastError = "Unsupported PID 0x" + String(pid, HEX) + " for parsing";
                 lastErrorTime = millis();
                 return false;
         }
-        
+
         lastError = "Failed to parse OBD data for PID 0x" + String(pid, HEX);
         lastErrorTime = millis();
         return false;
     }
-    
+
 };
 
 // Minimal GPS simulation with averaging
@@ -1382,30 +1382,30 @@ private:
     uint8_t satHistory[HISTORY_SIZE];
     int historyIndex = 0;
     int historyCount = 0;
-    
+
 public:
-    bool begin() { 
+    bool begin() {
         // Initialize history array
         for (int i = 0; i < HISTORY_SIZE; i++) {
             satHistory[i] = 0;
         }
-        return true; 
+        return true;
     }
-    
+
     bool getData(float& lat, float& lng, uint8_t& sat) {
         lat = 37.7749 + (random(-1000, 1000) / 100000.0);
         lng = -122.4194 + (random(-1000, 1000) / 100000.0);
-        
+
         // Generate satellite count (avoid zero)
         uint8_t currentSat = 4 + random(0, 8); // Range 4-11 satellites
-        
+
         // Store in history
         satHistory[historyIndex] = currentSat;
         historyIndex = (historyIndex + 1) % HISTORY_SIZE;
         if (historyCount < HISTORY_SIZE) {
             historyCount++;
         }
-        
+
         // Calculate average
         if (historyCount > 0) {
             uint32_t sum = 0;
@@ -1416,10 +1416,10 @@ public:
         } else {
             sat = currentSat;
         }
-        
+
         return true;
     }
-    
+
     int getHistoryCount() {
         return historyCount;
     }
@@ -1440,21 +1440,21 @@ private:
     StatusReading statusHistory[STATUS_HISTORY_SIZE];
     int statusHistoryIndex = 0;
     int statusHistoryCount = 0;
-    
+
 public:
     TeleStore store;
     SimpleOBD obd;
     SimpleGPS gps;
-    
-    
+
+
     bool init()
     {
         bool success = true;
-        
+
         // Initialize LED pin
         pinMode(PIN_LED, OUTPUT);
         digitalWrite(PIN_LED, LOW);
-        
+
         // Initialize BLE
         BLESerial::print("BLE...");
         BLEDevice::init(BLE_DEVICE_NAME);
@@ -1479,10 +1479,10 @@ public:
         pAdvertising->setScanResponse(false);
         pAdvertising->setMinPreferred(0x0);
         BLEDevice::startAdvertising();
-        
+
         BLESerial::println("OK");
         m_state |= STATE_BLE_READY;
-        
+
         // Initialize OBD
         BLESerial::print("OBD...");
         if (obd.init()) {
@@ -1492,7 +1492,7 @@ public:
             BLESerial::println("NO");
             success = false;
         }
-        
+
         // Initialize GPS
         BLESerial::print("GPS...");
         if (gps.begin()) {
@@ -1501,13 +1501,13 @@ public:
         } else {
             BLESerial::println("NO");
         }
-        
+
         // Initialize MEMS
         BLESerial::print("MEMS...");
         // MEMS initialization not available in this library version
         BLESerial::println("SKIPPED");
         // m_state |= STATE_MEMS_READY; // Disabled for graceful degradation
-        
+
         // Initialize storage
         BLESerial::print("Storage...");
         if (store.init()) {
@@ -1516,42 +1516,42 @@ public:
         } else {
             BLESerial::println("NO");
         }
-        
+
         return success;
     }
-    
+
     void process()
     {
         // Handle LED blinking when no client connected
         handleLedBlink();
-        
+
         // Only process data if BLE client is connected
         if (bleClientConnected) {
             // Process OBD data
             if (m_state & STATE_OBD_READY) {
                 processOBD();
             }
-            
+
             // Process GPS data
             if (m_state & STATE_GPS_READY) {
                 processGPS();
             }
-            
+
             // Process MEMS data
             if (m_state & STATE_MEMS_READY) {
                 processMEMS();
             }
-            
+
             // Send data via BLE for debugging
             sendBLEData();
         }
     }
-    
+
     void handleLedOnly()
     {
         handleLedBlink();
     }
-    
+
 private:
     void handleLedBlink()
     {
@@ -1567,12 +1567,12 @@ private:
             digitalWrite(PIN_LED, HIGH);
         }
     }
-    
+
     void processOBD()
     {
         static uint32_t lastOBDTime = 0;
         if (millis() - lastOBDTime < OBD_INTERVAL) return;
-        
+
         int value;
         // Core engine data only
         if (obd.readPID(PID_RPM, value)) store.log(PID_RPM, value);
@@ -1580,34 +1580,34 @@ private:
         if (obd.readPID(PID_COOLANT_TEMP, value)) store.log(PID_COOLANT_TEMP, value);
         if (obd.readPID(PID_ENGINE_LOAD, value)) store.log(PID_ENGINE_LOAD, value);
         if (obd.readPID(PID_THROTTLE_POS, value)) store.log(PID_THROTTLE_POS, value);
-        
+
         // Essential fuel data
         if (obd.readPID(PID_SHORT_TERM_FUEL_TRIM_1, value)) store.log(PID_SHORT_TERM_FUEL_TRIM_1, value);
         if (obd.readPID(PID_LONG_TERM_FUEL_TRIM_1, value)) store.log(PID_LONG_TERM_FUEL_TRIM_1, value);
         if (obd.readPID(PID_FUEL_TANK_LEVEL, value)) store.log(PID_FUEL_TANK_LEVEL, value);
-        
+
         // Key sensors
         if (obd.readPID(PID_INTAKE_TEMP, value)) store.log(PID_INTAKE_TEMP, value);
         if (obd.readPID(PID_MAF_FLOW, value)) store.log(PID_MAF_FLOW, value);
         if (obd.readPID(PID_O2_S1_VOLTAGE, value)) store.log(PID_O2_S1_VOLTAGE, value);
-        
+
         // Hardware sensors (using custom PIDs to avoid confusion with OBD-II)
         if (obd.readPID(0xF0, value)) store.log(0xF0, value); // Device input voltage
         if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) store.log(PID_AMBIENT_AIR_TEMP, value);
         if (obd.readPID(PID_ABSOLUTE_BAROMETRIC_PRESSURE, value)) store.log(PID_ABSOLUTE_BAROMETRIC_PRESSURE, value);
-        
+
         // Try to get real OBD-II data for these if available
         if (obd.readPID(PID_CONTROL_MODULE_VOLTAGE, value)) store.log(PID_CONTROL_MODULE_VOLTAGE, value);
         if (obd.readPID(PID_ENGINE_PRESSURE, value)) store.log(PID_ENGINE_PRESSURE, value);
-        
+
         lastOBDTime = millis();
     }
-    
+
     void processGPS()
     {
         static uint32_t lastGPSTime = 0;
         if (millis() - lastGPSTime < GPS_INTERVAL) return;
-        
+
         float lat, lng;
         uint8_t sat;
         if (gps.getData(lat, lng, sat)) {
@@ -1615,106 +1615,106 @@ private:
             store.log(0x21, (int32_t)(lng * 1000000));
             store.log(0x22, sat);
         }
-        
+
         lastGPSTime = millis();
     }
-    
+
     void processMEMS()
     {
         // MEMS functionality not available in this library version
         // Gracefully skip MEMS processing
         return;
     }
-    
+
     void sendBLEData()
     {
         static uint32_t lastBLETime = 0;
         static uint32_t lastStatusTime = 0;
         static uint32_t lastHeartbeatTime = 0;
         static uint32_t messageCounter = 0;
-        
+
         if (millis() - lastBLETime < BLE_INTERVAL) return;
-        
+
         if (bleClientConnected && (m_state & STATE_BLE_READY)) {
             // Send main data packet
             String bleData = formatDataForBLE();
             if (bleData.length() > 0) {
                 messageCounter++;
                 String fullMessage = String(messageCounter) + ":" + bleData;
-                
+
                 // Log what we're sending
                 Serial.println("BLE TX: " + fullMessage); // Keep original Serial for BLE TX logs to avoid recursion
-                
+
                 pCharacteristic->setValue(fullMessage.c_str());
                 pCharacteristic->notify();
-                
+
                 // Small delay to ensure message is sent
                 delay(10);
             }
-            
+
             // Send periodic status updates every 5 seconds
             if (millis() - lastStatusTime > 5000) {
                 // Record current status in history
                 recordStatusReading();
-                
+
                 messageCounter++;
                 String statusData = String(messageCounter) + ":" + String(millis()) + ",STATUS:";
-                
+
                 // Get averaged status
                 String obdStatus = getAveragedOBDStatus();
                 String gpsStatus = getAveragedGPSStatus();
                 String storageStatus = getAveragedStorageStatus();
                 String bleStatus = getAveragedBLEStatus();
-                
+
                 statusData += "OBD=" + obdStatus + ",";
                 statusData += "GPS=" + gpsStatus + ",";
                 statusData += "STORAGE=" + storageStatus + ",";
                 statusData += "BLE=" + bleStatus + ",";
                 statusData += "API_VERSION=" + String(API_VERSION) + ",";
                 statusData += "UPTIME=" + String(millis() / 1000) + ";";
-                
+
                 Serial.println("BLE TX STATUS: " + statusData); // Keep original Serial for BLE TX logs
                 pCharacteristic->setValue(statusData.c_str());
                 pCharacteristic->notify();
                 lastStatusTime = millis();
-                
+
                 delay(10);
             }
-            
+
             // Send heartbeat every 2 seconds when no other data
             if (millis() - lastHeartbeatTime > 2000) {
                 messageCounter++;
                 String heartbeat = String(messageCounter) + ":" + String(millis()) + ",HEARTBEAT:OK;";
-                
+
                 Serial.println("BLE TX HEARTBEAT: " + heartbeat); // Keep original Serial for BLE TX logs
                 pCharacteristic->setValue(heartbeat.c_str());
                 pCharacteristic->notify();
                 lastHeartbeatTime = millis();
-                
+
                 delay(10);
             }
         }
-        
+
         lastBLETime = millis();
     }
-    
+
     String formatDataForBLE()
     {
         String data = String(millis()) + ",";
-        
+
         // Add any pending serial messages first
         String serialMessages = getSerialMessages();
         if (serialMessages.length() > 0) {
             data += "SERIAL:" + serialMessages + ";";
         }
-        
+
         // Add data source indicator
         if (obd.isUsingRealData()) {
             data += "MODE:REAL;";
         } else {
             data += "MODE:DISABLED;"; // No OBD data
         }
-        
+
         int value;
         // Essential data only
         if (obd.readPID(PID_RPM, value)) data += "RPM:" + String(value) + ";";
@@ -1728,16 +1728,16 @@ private:
         if (obd.readPID(PID_INTAKE_TEMP, value)) data += "INTAKE_TEMP:" + String(value) + ";";
         if (obd.readPID(PID_MAF_FLOW, value)) data += "MAF_FLOW:" + String(value) + ";";
         if (obd.readPID(PID_O2_S1_VOLTAGE, value)) data += "O2_VOLTAGE:" + String(value) + ";";
-        
+
         // Device hardware sensors
         if (obd.readPID(0xF0, value)) data += "BATTERY:" + String(value) + ";"; // Device input voltage
         if (obd.readPID(PID_AMBIENT_AIR_TEMP, value)) data += "AMBIENT:" + String(value) + ";";
         if (obd.readPID(PID_ABSOLUTE_BAROMETRIC_PRESSURE, value)) data += "PRESSURE:" + String(value) + ";";
-        
+
         // Real OBD-II data if available
         if (obd.readPID(PID_CONTROL_MODULE_VOLTAGE, value)) data += "OBD_BATTERY:" + String(value) + ";";
         if (obd.readPID(PID_ENGINE_PRESSURE, value)) data += "OIL_PRESSURE:" + String(value) + ";";
-        
+
         // Additional engine parameters for UI synchronization
         if (obd.readPID(PID_ENGINE_OIL_TEMP, value)) data += "OIL_TEMP:" + String(value) + ";";
         if (obd.readPID(PID_EXHAUST_GAS_TEMP_BANK_1, value)) data += "EXHAUST_TEMP:" + String(value) + ";";
@@ -1746,7 +1746,7 @@ private:
         if (obd.readPID(PID_CATALYST_TEMP_B1S1, value)) data += "CATALYST_TEMP:" + String(value) + ";";
         if (obd.readPID(PID_TURBOCHARGER_RPM, value)) data += "TURBO_RPM:" + String(value) + ";";
         if (obd.readPID(PID_BOOST_PRESSURE_CONTROL, value)) data += "BOOST_PRESSURE:" + String(value) + ";";
-        
+
         float lat, lng;
         uint8_t sat;
         if (gps.getData(lat, lng, sat)) {
@@ -1754,10 +1754,10 @@ private:
             store.log(0x20, (int32_t)(lat * 1000000));
             store.log(0x21, (int32_t)(lng * 1000000));
             store.log(0x22, sat);
-            
+
             data += "GPS:" + String(lat, 6) + "," + String(lng, 6) + ";";
             data += "SAT:" + String(sat);
-            
+
             // Add indicator if we don't have enough readings for full average
             int historyCount = gps.getHistoryCount();
             if (historyCount < 10) {
@@ -1765,20 +1765,20 @@ private:
             }
             data += ";";
         }
-        
+
         // Include error information if available
         String lastError = obd.getLastError();
         if (lastError.length() > 0 && (millis() - obd.getLastErrorTime()) < 5000) {
             data += "ERROR:" + lastError + ";";
         }
-        
+
         return data;
     }
-    
+
     String getSerialMessages() {
         String messages = "";
         int messageCount = 0;
-        
+
         // Get up to 3 most recent unused messages
         for (int i = 0; i < serialBufferCount && messageCount < 3; i++) {
             int index = (serialBufferIndex - 1 - i + SERIAL_BUFFER_SIZE) % SERIAL_BUFFER_SIZE;
@@ -1791,10 +1791,10 @@ private:
                 messageCount++;
             }
         }
-        
+
         return messages;
     }
-    
+
     void recordStatusReading() {
         StatusReading& reading = statusHistory[statusHistoryIndex];
         reading.obdReal = obd.isUsingRealData();
@@ -1803,18 +1803,18 @@ private:
         reading.storageReady = (m_state & STATE_STORAGE_READY) != 0;
         reading.bleReady = (m_state & STATE_BLE_READY) != 0;
         reading.timestamp = millis();
-        
+
         statusHistoryIndex = (statusHistoryIndex + 1) % STATUS_HISTORY_SIZE;
         if (statusHistoryCount < STATUS_HISTORY_SIZE) {
             statusHistoryCount++;
         }
     }
-    
+
     String getAveragedOBDStatus() {
         if (statusHistoryCount == 0) {
             return obd.isUsingRealData() ? "REAL" : "OFF";
         }
-        
+
         int realCount = 0, offCount = 0;
         for (int i = 0; i < statusHistoryCount; i++) {
             if (statusHistory[i].obdReal) {
@@ -1823,76 +1823,76 @@ private:
                 offCount++;
             }
         }
-        
+
         String result = (realCount > offCount) ? "REAL" : "OFF";
-        
+
         if (statusHistoryCount < STATUS_HISTORY_SIZE) {
             result += "(" + String(statusHistoryCount) + "/10)";
         }
-        
+
         return result;
     }
-    
+
     String getAveragedGPSStatus() {
         if (statusHistoryCount == 0) {
             return (m_state & STATE_GPS_READY) ? "OK" : "FAIL";
         }
-        
+
         int okCount = 0;
         for (int i = 0; i < statusHistoryCount; i++) {
             if (statusHistory[i].gpsReady) {
                 okCount++;
             }
         }
-        
+
         String result = (okCount > statusHistoryCount / 2) ? "OK" : "FAIL";
         if (statusHistoryCount < STATUS_HISTORY_SIZE) {
             result += "(" + String(statusHistoryCount) + "/10)";
         }
-        
+
         return result;
     }
-    
+
     String getAveragedStorageStatus() {
         if (statusHistoryCount == 0) {
             return (m_state & STATE_STORAGE_READY) ? "OK" : "FAIL";
         }
-        
+
         int okCount = 0;
         for (int i = 0; i < statusHistoryCount; i++) {
             if (statusHistory[i].storageReady) {
                 okCount++;
             }
         }
-        
+
         String result = (okCount > statusHistoryCount / 2) ? "OK" : "FAIL";
         if (statusHistoryCount < STATUS_HISTORY_SIZE) {
             result += "(" + String(statusHistoryCount) + "/10)";
         }
-        
+
         return result;
     }
-    
+
     String getAveragedBLEStatus() {
         if (statusHistoryCount == 0) {
             return (m_state & STATE_BLE_READY) ? "OK" : "FAIL";
         }
-        
+
         int okCount = 0;
         for (int i = 0; i < statusHistoryCount; i++) {
             if (statusHistory[i].bleReady) {
                 okCount++;
             }
         }
-        
+
         String result = (okCount > statusHistoryCount / 2) ? "OK" : "FAIL";
         if (statusHistoryCount < STATUS_HISTORY_SIZE) {
             result += "(" + String(statusHistoryCount) + "/10)";
         }
-        
+
         return result;
     }
-    
+
     uint16_t m_state = 0;
 };
 
@@ -1902,17 +1902,17 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
         String value = pCharacteristic->getValue();
         if (value.length() > 0) {
             BLESerial::println("BLE RX: " + value);
-            
+
             // Handle commands from BLE client
             if (value.startsWith("CMD:")) {
                 String command = value.substring(4); // Remove "CMD:" prefix
-                
+
                 if (command == "STATUS" && logger) {
                     BLESerial::println("Status request received via BLE");
                     // Status will be sent in next sendBLEData() cycle
                 } else if (command == "PING") {
                     BLESerial::println("Ping received via BLE");
-                    
+
                     // Send pong response with message counter
                     if (pCharacteristic) {
                         static uint32_t pingMessageCounter = 2000; // Start high to avoid conflicts
@@ -1923,10 +1923,10 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                     }
                 } else if (command == "DIAGNOSTIC" && logger) {
                     BLESerial::println("Diagnostic mode requested via BLE");
-                    
+
                     // Get access to message counter (we'll use a static counter for diagnostic messages)
                     static uint32_t diagnosticMessageCounter = 1000; // Start high to avoid conflicts
-                    
+
                     // Send diagnostic started message
                     if (pCharacteristic) {
                         diagnosticMessageCounter++;
@@ -1935,22 +1935,22 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                         pCharacteristic->notify();
                         delay(100);
                     }
-                    
+
                     // Run comprehensive diagnostics
                     String diagnosticResults = logger->obd.runFullDiagnostics();
                     BLESerial::println("Diagnostic results length: " + String(diagnosticResults.length()));
-                    
+
                     // Send results in chunks if too large for single BLE packet
                     if (diagnosticResults.length() > 400) {
                         // Split into chunks
                         int chunkSize = 400;
                         int chunks = (diagnosticResults.length() + chunkSize - 1) / chunkSize;
-                        
+
                         for (int i = 0; i < chunks; i++) {
                             int start = i * chunkSize;
                             int end = min(start + chunkSize, (int)diagnosticResults.length());
                             String chunk = diagnosticResults.substring(start, end);
-                            
+
                             diagnosticMessageCounter++;
                             String chunkMsg = String(diagnosticMessageCounter) + ":" + String(millis()) + ",DIAGNOSTIC_RESULTS:" + chunk + ";";
                             pCharacteristic->setValue(chunkMsg.c_str());
@@ -1965,7 +1965,7 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
                         pCharacteristic->notify();
                         delay(100);
                     }
-                    
+
                     // Send completion message
                     diagnosticMessageCounter++;
                     String completeMsg = String(diagnosticMessageCounter) + ":" + String(millis()) + ",DIAGNOSTIC_COMPLETE:SUCCESS;";
@@ -1983,22 +1983,22 @@ void setup()
 {
     Serial.begin(115200);
     delay(1000);
-    
+
     // Initialize serial buffer
     for (int i = 0; i < SERIAL_BUFFER_SIZE; i++) {
         serialBuffer[i].message = "";
         serialBuffer[i].timestamp = 0;
         serialBuffer[i].used = true;
     }
-    
+
     BLESerial::println("Freematics Custom Starting...");
-    
+
     // Initialize global logger pointer
     logger = &loggerInstance;
-    
+
     if (logger->init()) {
         BLESerial::println("Logger OK");
-        
+
         // Set BLE callbacks after initialization
         if (pCharacteristic) {
             pCharacteristic->setCallbacks(new MyCharacteristicCallbacks());
@@ -2006,7 +2006,7 @@ void setup()
     } else {
         BLESerial::println("Logger FAIL");
     }
-    
+
     BLESerial::println("Waiting for BLE client connection...");
 }
 
