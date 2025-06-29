@@ -19,10 +19,8 @@
 #define DEBUG_ENABLED 1
 #define SERIAL_BAUDRATE 115200
 
-// OBD Communication Method Configuration
-#define USE_FREEMATICS_LIBRARY 1    // 1 = Use FreematicsPlus library, 0 = Use fallback CAN
-#define USE_FALLBACK_CAN 1           // 1 = Enable fallback CAN implementation, 0 = Disable
-#define USE_SERIAL_OBD 1             // 1 = Enable Serial ELM327 fallback, 0 = Disable
+// OBD Communication Method Configuration - Simplified
+// All OBD methods enabled for simplicity
 
 // Pin definitions (adjust based on your hardware)
 #define PIN_LED 2
