@@ -810,50 +810,25 @@ public:
                                               issues <= 2 ? "GOOD" : 
                                               issues <= 4 ? "WARNING" : "CRITICAL") + "|";
         
-        // OBD-II specific status - prioritize Freematics ONE+
+        // OBD-II specific status - simplified
         results += "|=== OBD-II COMMUNICATION STATUS ===|";
-        results += "PRIORITY ORDER: 1=Freematics Co-processor, 2=Serial OBD, 3=Direct CAN|";
+        results += "PRIORITY ORDER: 1=Freematics Co-processor, 2=Serial OBD|";
         
-#if USE_FREEMATICS_LIBRARY
         results += "1. FreematicsPlus Library: ENABLED (PRIMARY)|";
         results += "   Co-processor Status: " + String(obdInitialized ? "READY" : "FAILED") + "|";
         if (obdInitialized) {
             results += "   Authority: HIGHEST - Using co-processor for OBD communication|";
         }
-#else
-        results += "1. FreematicsPlus Library: DISABLED|";
-#endif
 
-#if USE_SERIAL_OBD
         results += "2. Serial OBD: ENABLED (SECONDARY)|";
         results += "   ELM327 Response: " + String(obdResponsive ? "RESPONSIVE" : "NO RESPONSE") + "|";
-#if USE_FREEMATICS_LIBRARY
         if (obdInitialized) {
             results += "   Status: STANDBY (Co-processor has priority)|";
         } else {
             results += "   Status: " + String(obdResponsive ? "ACTIVE FALLBACK" : "UNAVAILABLE") + "|";
         }
-#endif
-#else
-        results += "2. Serial OBD: DISABLED|";
-#endif
-
-#if USE_FALLBACK_CAN
-        results += "3. Fallback CAN: ENABLED (TERTIARY)|";
-        results += "   CAN Hardware: " + String((canTxHigh && canTxLow) ? "READY" : "ISSUE") + "|";
-#if USE_FREEMATICS_LIBRARY || USE_SERIAL_OBD
-        results += "   Status: STANDBY (Higher priority methods available)|";
-#endif
-#else
-        results += "3. Fallback CAN: DISABLED|";
-#endif
-
-#if !USE_FREEMATICS_LIBRARY && !USE_FALLBACK_CAN && !USE_SERIAL_OBD
-        results += "All OBD Methods: DISABLED|";
-#endif
         
         results += "|Current Active Method: ";
-#if USE_FREEMATICS_LIBRARY
         if (obdInitialized && realOBDAvailable) {
             results += "FREEMATICS CO-PROCESSOR|";
         } else if (obdInitialized) {
@@ -861,9 +836,6 @@ public:
         } else {
             results += String(realOBDAvailable ? "FALLBACK METHOD" : "DISCONNECTED") + "|";
         }
-#else
-        results += String(realOBDAvailable ? "FALLBACK METHOD" : "DISCONNECTED") + "|";
-#endif
         
         // Recommendations
         if (issues > 0) {
@@ -878,12 +850,10 @@ public:
             if (!BLEDevice::getInitialized()) results += "• BLE not initialized - restart required|";
             if (!obdResponsive) results += "• No Serial OBD response - check ELM327 adapter|";
             if (!canTxHigh || !canTxLow) results += "• CAN TX pin issue - check GPIO4 connection|";
-#if USE_FREEMATICS_LIBRARY
             if (!obdInitialized) {
                 results += "• Check Freematics ONE+ co-processor connection and power|";
                 results += "• Verify co-processor firmware is properly loaded|";
             }
-#endif
             results += "• Freematics co-processor is preferred over direct CAN|";
             results += "• Verify SN65HVD230 transceiver power and connections|";
         }
