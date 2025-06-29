@@ -163,10 +163,8 @@ private:
     unsigned long lastErrorTime = 0;
     bool obdInitialized = false;
     
-#if USE_FREEMATICS_LIBRARY
     CFreematicsESP32 sys;
     COBD obd;
-#endif
     
 public:
     bool init() { 
