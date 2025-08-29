@@ -9,36 +9,9 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
+#include "libraries/FreematicsPlus/FreematicsPlus.h"
 #include "config.h"
 #include "telestore.h"
-
-// Define OBD protocol constants
-#define OBD_PROTOCOL_ISO15765_11B_500K 6
-#define OBD_PROTOCOL_ISO15765_29B_500K 7
-
-// Simplified OBD class definitions
-class CFreematicsESP32 {
-public:
-    bool begin() {
-        Serial.println("  Using fallback CFreematicsESP32 implementation");
-        return true;
-    }
-    void* link = nullptr;
-};
-
-class COBD {
-public:
-    void begin(void* sys) {
-        Serial.println("  Using fallback COBD implementation");
-    }
-    bool init(int protocol) {
-        Serial.println("  Fallback OBD init for protocol " + String(protocol));
-        return false;
-    }
-    bool readPID(uint8_t pid, int& value) {
-        return false;
-    }
-};
 
 // working states
 #define STATE_STORAGE_READY 0x1
@@ -163,7 +136,7 @@ private:
     unsigned long lastErrorTime = 0;
     bool obdInitialized = false;
 
-    CFreematicsESP32 sys;
+    FreematicsESP32 sys;
     COBD obd;
 
 public:
@@ -226,13 +199,13 @@ public:
 
         // Initialize OBD library
         Serial.print("Initializing OBD library...");
-        obd.begin(&sys);
+        obd.begin(sys.link);
         Serial.println("OK");
 
         // Initialize CAN bus protocol
         Serial.print("Connecting to CAN bus (ISO15765 11-bit 500K)...");
         int attempts = 0;
-        while (!obd.init(OBD_PROTOCOL_ISO15765_11B_500K) && attempts < 10) {
+        while (!obd.init(PROTO_ISO15765_11B_500K) && attempts < 10) {
             Serial.print('.');
             delay(1000);
             attempts++;
@@ -246,7 +219,7 @@ public:
             // Try alternative protocols
             Serial.print("Trying ISO15765 29-bit 500K...");
             attempts = 0;
-            while (!obd.init(OBD_PROTOCOL_ISO15765_29B_500K) && attempts < 5) {
+            while (!obd.init(PROTO_ISO15765_29B_500K) && attempts < 5) {
                 Serial.print('.');
                 delay(1000);
                 attempts++;
@@ -1899,13 +1872,14 @@ private:
 // BLE Characteristic Callbacks
 class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *pCharacteristic) {
-        String value = pCharacteristic->getValue();
+        std::string value = pCharacteristic->getValue();
         if (value.length() > 0) {
-            BLESerial::println("BLE RX: " + value);
+            BLESerial::println("BLE RX: " + String(value.c_str()));
 
             // Handle commands from BLE client
-            if (value.startsWith("CMD:")) {
-                String command = value.substring(4); // Remove "CMD:" prefix
+            String valueStr = String(value.c_str());
+            if (valueStr.startsWith("CMD:")) {
+                String command = valueStr.substring(4); // Remove "CMD:" prefix
 
                 if (command == "STATUS" && logger) {
                     BLESerial::println("Status request received via BLE");
