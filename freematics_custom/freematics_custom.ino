@@ -202,10 +202,10 @@ public:
         obd.begin(sys.link);
         Serial.println("OK");
 
-        // Initialize CAN bus protocol
-        Serial.print("Connecting to CAN bus (ISO15765 11-bit 500K)...");
+        // Initialize CAN bus protocol with auto-detection
+        Serial.print("Connecting to CAN bus (auto protocol detection)...");
         int attempts = 0;
-        while (!obd.init(PROTO_ISO15765_11B_500K) && attempts < 10) {
+        while (!obd.init(PROTO_AUTO) && attempts < 10) {
             Serial.print('.');
             delay(1000);
             attempts++;
@@ -213,27 +213,45 @@ public:
 
         if (attempts >= 10) {
             Serial.println("FAILED");
-            lastError = "CAN bus initialization timeout";
+            lastError = "CAN bus auto-detection timeout";
             lastErrorTime = millis();
 
-            // Try alternative protocols
-            Serial.print("Trying ISO15765 29-bit 500K...");
-            attempts = 0;
-            while (!obd.init(PROTO_ISO15765_29B_500K) && attempts < 5) {
-                Serial.print('.');
-                delay(1000);
-                attempts++;
-            }
-
-            if (attempts >= 5) {
+            // Try all supported protocols sequentially
+            const OBD_PROTOCOLS protocols[] = {
+                PROTO_ISO15765_11B_500K,
+                PROTO_ISO15765_29B_500K,
+                PROTO_ISO15765_29B_250K,
+                PROTO_ISO15765_11B_250K,
+                PROTO_ISO_9141_2,
+                PROTO_KWP2000_5KBPS,
+                PROTO_KWP2000_FAST,
+                PROTO_J1939,
+                PROTO_ISO11898_11B_500K,
+                PROTO_ISO11898_29B_500K,
+                PROTO_ISO11898_11B_250K,
+                PROTO_ISO11898_29B_250K
+            };
+            for (size_t i = 0; i < sizeof(protocols) / sizeof(protocols[0]); i++) {
+                Serial.print("Trying protocol 0x");
+                Serial.print((int)protocols[i], HEX);
+                Serial.print("...");
+                attempts = 0;
+                while (!obd.init(protocols[i]) && attempts < 5) {
+                    Serial.print('.');
+                    delay(1000);
+                    attempts++;
+                }
+                if (attempts < 5) {
+                    Serial.println("OK");
+                    return true;
+                }
                 Serial.println("FAILED");
-                lastError = "All CAN protocols failed";
-                lastErrorTime = millis();
-
-                // Try serial OBD as final fallback
-                Serial.println("Trying Serial OBD fallback...");
-                return initSerialOBDInterface();
             }
+
+            lastError = "All OBD protocols failed";
+            lastErrorTime = millis();
+            Serial.println("Trying Serial OBD fallback...");
+            return initSerialOBDInterface();
         }
 
         Serial.println("OK");
